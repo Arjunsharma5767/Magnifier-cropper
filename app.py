@@ -1,8 +1,9 @@
 import os
 import cv2
 import numpy as np
-from flask import Flask, request, send_from_directory, render_template_string, url_for, redirect
+from flask import Flask, request, send_from_directory, render_template_string, url_for, redirect, jsonify
 from werkzeug.utils import secure_filename
+import base64
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -178,31 +179,73 @@ img:hover {
   color: #555;
   cursor: pointer;
 }
-.twentytwenty-container {
-  width: 100%;
-  max-width: 600px;
+.magnifier-container {
+  position: relative;
+  max-width: 700px;
   margin: 0 auto;
-  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
-.twentytwenty-container img {
+.magnifier-image {
   width: 100%;
   display: block;
+  cursor: move;
 }
-hr {
-  margin: 40px 0; 
-  border: 0; 
-  border-top: 1px solid #ccc;
+.image-preview {
+  max-width: 100%;
+  max-height: 400px;
+  margin: 0 auto 20px;
+  display: block;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
-.comparison-slider {
+#magnified-image-container {
   width: 100%;
-  max-width: 700px;
-  position: relative;
+  height: 400px;
   overflow: hidden;
+  position: relative;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  margin-top: 20px;
+}
+#magnified-image {
+  position: absolute;
+  transform-origin: top left;
+  cursor: move;
+}
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+#zoom-info {
+  margin-top: 10px;
+  font-weight: bold;
+  color: #4285f4;
+}
+.instructions {
+  margin: 15px 0;
+  padding: 10px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #555;
+}
+.loading {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #4285f4;
+  font-size: 1.5rem;
+  background: rgba(255,255,255,0.8);
+  padding: 15px 30px;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-  margin: 20px auto;
 }
 """
 
@@ -213,243 +256,394 @@ INDEX_HTML = """
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Magnifier</title>
+  <title>Real-time Image Magnifier</title>
   <style>{{ css }}</style>
 </head>
 <body>
   <div class="container">
-    <h1>🔍 Professional Image Magnifier</h1>
-    <form id="upload-form" action="/" method="POST" enctype="multipart/form-data">
+    <h1>🔍 Real-time Image Magnifier</h1>
+    <div id="upload-section">
       <div class="upload-area" id="drop-area" onclick="document.getElementById('file-input').click()">
         <div class="upload-icon">📁</div>
         <p>Click to select or drag and drop an image</p>
       </div>
-      <input type="file" id="file-input" name="image" accept="image/*" required>
+      <input type="file" id="file-input" name="image" accept="image/*">
+    </div>
+    
+    <div id="magnifier-section" style="display: none;">
       <div class="control-panel">
         <div class="slider-container">
-          <label for="intensity">Magnification Level: <span id="intensity-value">5</span></label>
-          <input type="range" id="intensity" name="intensity" class="slider" min="1" max="10" value="5">
+          <label for="intensity">Magnification Level: <span id="intensity-value">1</span>x</label>
+          <input type="range" id="intensity" name="intensity" class="slider" min="1" max="5" value="1" step="0.1">
         </div>
         <div class="checkbox-container">
-          <input type="checkbox" id="grayscale" name="grayscale" value="yes">
+          <input type="checkbox" id="grayscale" name="grayscale">
           <label for="grayscale">Convert to Grayscale</label>
         </div>
-        <button type="submit" class="button">Upload & Magnify</button>
+        <div class="instructions">
+          <p>Drag to pan around the image. Use the slider to zoom in and out.</p>
+        </div>
       </div>
-    </form>
+      
+      <div id="magnified-image-container" class="no-select">
+        <div class="loading" id="loading-indicator">Processing...</div>
+        <img id="magnified-image" src="">
+      </div>
+      <div id="zoom-info">Current zoom: 1.0x</div>
+      
+      <div class="action-buttons">
+        <button id="download-btn" class="button download">⬇️ Download Magnified Image</button>
+        <button id="new-image-btn" class="button">⏪ Upload New Image</button>
+      </div>
+    </div>
   </div>
+  
   <script>
-    const intensitySlider = document.getElementById('intensity');
-    const intensityValue = document.getElementById('intensity-value');
-    intensitySlider.addEventListener('input', function() {
-      intensityValue.textContent = this.value;
-    });
+    // DOM Elements
     const dropArea = document.getElementById('drop-area');
     const fileInput = document.getElementById('file-input');
+    const uploadSection = document.getElementById('upload-section');
+    const magnifierSection = document.getElementById('magnifier-section');
+    const intensitySlider = document.getElementById('intensity');
+    const intensityValue = document.getElementById('intensity-value');
+    const grayscaleCheckbox = document.getElementById('grayscale');
+    const magnifiedImage = document.getElementById('magnified-image');
+    const magnifiedContainer = document.getElementById('magnified-image-container');
+    const zoomInfo = document.getElementById('zoom-info');
+    const downloadBtn = document.getElementById('download-btn');
+    const newImageBtn = document.getElementById('new-image-btn');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    
+    // Variables for dragging
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+    let currentScale = 1.0;
+    let originalImageWidth, originalImageHeight;
+    let imageData = null;
+    
+    // Event Listeners for drag and drop
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
       dropArea.addEventListener(eventName, preventDefaults, false);
     });
+    
     function preventDefaults(e) {
       e.preventDefault();
       e.stopPropagation();
     }
+    
     ['dragenter', 'dragover'].forEach(eventName => {
       dropArea.addEventListener(eventName, highlight, false);
     });
+    
     ['dragleave', 'drop'].forEach(eventName => {
       dropArea.addEventListener(eventName, unhighlight, false);
     });
+    
     function highlight() {
       dropArea.style.borderColor = '#4285f4';
       dropArea.style.backgroundColor = '#f0f7ff';
     }
+    
     function unhighlight() {
       dropArea.style.borderColor = '#ccc';
       dropArea.style.backgroundColor = 'transparent';
     }
+    
+    // File Upload Handling
     dropArea.addEventListener('drop', handleDrop, false);
+    fileInput.addEventListener('change', handleFileSelect, false);
+    
     function handleDrop(e) {
       const dt = e.dataTransfer;
       const files = dt.files;
       if (files.length) {
-        fileInput.files = files;
+        handleFiles(files);
       }
+    }
+    
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      if (files.length) {
+        handleFiles(files);
+      }
+    }
+    
+    function handleFiles(files) {
+      if (files[0].type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          imageData = e.target.result;
+          setupMagnifier(imageData);
+        };
+        reader.readAsDataURL(files[0]);
+      } else {
+        alert("Please select an image file.");
+      }
+    }
+    
+    // Setup Magnifier
+    function setupMagnifier(imageUrl) {
+      // Switch from upload to magnifier view
+      uploadSection.style.display = 'none';
+      magnifierSection.style.display = 'block';
+      
+      // Reset zoom and position
+      currentScale = 1.0;
+      intensitySlider.value = 1;
+      intensityValue.textContent = '1';
+      zoomInfo.textContent = 'Current zoom: 1.0x';
+      
+      // Load image
+      const img = new Image();
+      img.onload = function() {
+        originalImageWidth = this.width;
+        originalImageHeight = this.height;
+        
+        // Set initial image
+        magnifiedImage.src = imageUrl;
+        magnifiedImage.style.width = '100%';
+        magnifiedImage.style.height = 'auto';
+        magnifiedImage.style.top = '0';
+        magnifiedImage.style.left = '0';
+        magnifiedImage.style.transform = 'scale(1)';
+        
+        // Apply grayscale if needed
+        applyGrayscale();
+      };
+      img.src = imageUrl;
+    }
+    
+    // Magnification Control
+    intensitySlider.addEventListener('input', updateMagnification);
+    grayscaleCheckbox.addEventListener('change', applyGrayscale);
+    
+    function updateMagnification() {
+      currentScale = parseFloat(intensitySlider.value);
+      intensityValue.textContent = currentScale.toFixed(1);
+      zoomInfo.textContent = `Current zoom: ${currentScale.toFixed(1)}x`;
+      
+      // Apply transform
+      magnifiedImage.style.transform = `scale(${currentScale})`;
+      
+      // Center the image when zooming
+      centerImage();
+    }
+    
+    function centerImage() {
+      const containerWidth = magnifiedContainer.clientWidth;
+      const containerHeight = magnifiedContainer.clientHeight;
+      
+      // Calculate scaled image dimensions
+      const scaledWidth = originalImageWidth * currentScale;
+      const scaledHeight = originalImageHeight * currentScale;
+      
+      // Center the image
+      let leftPos = (containerWidth - scaledWidth) / 2;
+      let topPos = (containerHeight - scaledHeight) / 2;
+      
+      // Ensure the image doesn't get positioned outside the viewable area
+      leftPos = Math.min(0, Math.max(leftPos, containerWidth - scaledWidth));
+      topPos = Math.min(0, Math.max(topPos, containerHeight - scaledHeight));
+      
+      magnifiedImage.style.left = `${leftPos}px`;
+      magnifiedImage.style.top = `${topPos}px`;
+    }
+    
+    // Grayscale Control
+    function applyGrayscale() {
+      loadingIndicator.style.display = 'block';
+      
+      // Small timeout to allow loading indicator to appear
+      setTimeout(() => {
+        if (grayscaleCheckbox.checked) {
+          magnifiedImage.style.filter = 'grayscale(100%)';
+        } else {
+          magnifiedImage.style.filter = 'none';
+        }
+        loadingIndicator.style.display = 'none';
+      }, 100);
+    }
+    
+    // Image Download
+    downloadBtn.addEventListener('click', downloadImage);
+    
+    function downloadImage() {
+      // Create a canvas to draw the magnified image
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = function() {
+        // Set canvas size to the scaled image size
+        canvas.width = img.width * currentScale;
+        canvas.height = img.height * currentScale;
+        
+        // Apply grayscale if needed
+        if (grayscaleCheckbox.checked) {
+          ctx.filter = 'grayscale(100%)';
+        }
+        
+        // Draw the scaled image
+        ctx.scale(currentScale, currentScale);
+        ctx.drawImage(img, 0, 0);
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.download = 'magnified_image.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+      
+      img.src = imageData;
+    }
+    
+    // Reset to upload new image
+    newImageBtn.addEventListener('click', resetToUpload);
+    
+    function resetToUpload() {
+      uploadSection.style.display = 'block';
+      magnifierSection.style.display = 'none';
+      fileInput.value = '';
+    }
+    
+    // Dragging functionality
+    magnifiedImage.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', endDrag);
+    
+    // Touch support
+    magnifiedImage.addEventListener('touchstart', startDragTouch);
+    document.addEventListener('touchmove', dragTouch);
+    document.addEventListener('touchend', endDrag);
+    
+    function startDrag(e) {
+      e.preventDefault();
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = parseInt(window.getComputedStyle(magnifiedImage).left) || 0;
+      startTop = parseInt(window.getComputedStyle(magnifiedImage).top) || 0;
+      magnifiedImage.style.cursor = 'grabbing';
+    }
+    
+    function startDragTouch(e) {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        startLeft = parseInt(window.getComputedStyle(magnifiedImage).left) || 0;
+        startTop = parseInt(window.getComputedStyle(magnifiedImage).top) || 0;
+      }
+    }
+    
+    function drag(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      
+      const x = e.clientX;
+      const y = e.clientY;
+      const containerWidth = magnifiedContainer.clientWidth;
+      const containerHeight = magnifiedContainer.clientHeight;
+      
+      // Calculate how far the mouse has moved
+      const deltaX = x - startX;
+      const deltaY = y - startY;
+      
+      // Calculate new position
+      let newLeft = startLeft + deltaX;
+      let newTop = startTop + deltaY;
+      
+      // Calculate boundaries based on scaled image size
+      const scaledWidth = originalImageWidth * currentScale;
+      const scaledHeight = originalImageHeight * currentScale;
+      
+      // Prevent moving the image too far
+      newLeft = Math.min(0, Math.max(newLeft, containerWidth - scaledWidth));
+      newTop = Math.min(0, Math.max(newTop, containerHeight - scaledHeight));
+      
+      // Apply new position
+      magnifiedImage.style.left = `${newLeft}px`;
+      magnifiedImage.style.top = `${newTop}px`;
+    }
+    
+    function dragTouch(e) {
+      if (!isDragging) return;
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const x = touch.clientX;
+        const y = touch.clientY;
+        const containerWidth = magnifiedContainer.clientWidth;
+        const containerHeight = magnifiedContainer.clientHeight;
+        
+        // Calculate how far the touch has moved
+        const deltaX = x - startX;
+        const deltaY = y - startY;
+        
+        // Calculate new position
+        let newLeft = startLeft + deltaX;
+        let newTop = startTop + deltaY;
+        
+        // Calculate boundaries based on scaled image size
+        const scaledWidth = originalImageWidth * currentScale;
+        const scaledHeight = originalImageHeight * currentScale;
+        
+        // Prevent moving the image too far
+        newLeft = Math.min(0, Math.max(newLeft, containerWidth - scaledWidth));
+        newTop = Math.min(0, Math.max(newTop, containerHeight - scaledHeight));
+        
+        // Apply new position
+        magnifiedImage.style.left = `${newLeft}px`;
+        magnifiedImage.style.top = `${newTop}px`;
+      }
+    }
+    
+    function endDrag() {
+      isDragging = false;
+      magnifiedImage.style.cursor = 'move';
     }
   </script>
 </body>
 </html>
 """
 
-# ========== RESULT HTML ==========
-RESULT_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Magnified Result</title>
-    <meta charset="UTF-8">
-    <style>{{ css }}</style>
+# ========== ROUTES ==========
+@app.route('/', methods=['GET'])
+def index():
+    return render_template_string(INDEX_HTML, css=CSS_STYLE)
 
-    <!-- jQuery + twentytwenty -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twentytwenty/1.0.0/css/twentytwenty.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.event.move/2.0.0/jquery.event.move.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/twentytwenty/1.0.0/js/jquery.twentytwenty.js"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>✨ Magnified Result</h1>
+# Route to serve static files
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-        <hr>
-
-        <div class="image-container">
-            <h3>🖼️ Side by Side View</h3>
-            <div class="image-wrapper">
-                <div class="image-box">
-                    <h3>Original</h3>
-                    <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Original Image">
-                </div>
-                <div class="image-box">
-                    <h3>Magnified</h3>
-                    <img src="{{ url_for('processed_file', filename=filename) }}" alt="Magnified Image">
-                </div>
-            </div>
-
-            <div class="action-buttons">
-                <a href="{{ url_for('download_file', filename=filename) }}" class="button download">⬇️ Download Magnified</a>
-                <a href="{{ url_for('index') }}" class="button">⏪ Process Another Image</a>
-            </div>
-        </div>
-    </div>
-
-    <script>
-      $(function(){
-        $(".twentytwenty-container").twentytwenty({
-          default_offset_pct: 0.5
-        });
-      });
-    </script>
-</body>
-</html>
-"""
-
-# ========== IMAGE PROCESSING ==========
-def magnify_image(input_path, output_path, intensity=5, grayscale=False):
-    """
-    Apply magnification to the image
-    
-    Parameters:
-    - input_path: Path to the input image
-    - output_path: Path to save the processed image
-    - intensity: Magnification level (1-10)
-    - grayscale: Whether to convert to grayscale
-    """
+# Helper function to process image using OpenCV
+def process_image(image_data, intensity=1.0, grayscale=False):
+    # Decode the base64 image
     try:
-        # Read the image
-        image = cv2.imread(input_path)
+        # Strip the header
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
         
-        if image is None:
-            raise ValueError(f"Failed to load image from {input_path}")
+        # Decode base64
+        image_bytes = base64.b64decode(image_data)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return None, "Failed to decode image"
         
         # Convert to grayscale if requested
         if grayscale:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            # Convert back to BGR so we can save as color (but still grayscale)
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         
-        # Get the current dimensions
-        height, width = image.shape[:2]
-        
-        # Calculate scaling factor based on intensity (1-10)
-        # Map intensity 1-10 to scaling factor 1.1-2.0
-        scale_factor = 1.0 + (intensity * 0.1)
-        
-        # Calculate new dimensions
-        new_width = int(width * scale_factor)
-        new_height = int(height * scale_factor)
-        
-        # Resize using different interpolation methods based on intensity
-        if intensity <= 3:
-            # For lower intensity, use INTER_LINEAR for smoother results
-            magnified = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-        elif intensity <= 7:
-            # For medium intensity, use INTER_CUBIC for better quality
-            magnified = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
-        else:
-            # For high intensity, use INTER_LANCZOS4 for best quality
-            magnified = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
-        
-        # For higher intensity values, apply additional post-processing
-        if intensity > 6:
-            # Apply mild sharpening to enhance details
-            kernel = np.array([[-1, -1, -1],
-                              [-1, 9, -1],
-                              [-1, -1, -1]]) / 5.0
-            
-            magnified = cv2.filter2D(magnified, -1, kernel)
-        
-        # Save the processed image
-        cv2.imwrite(output_path, magnified)
-        
+        # Convert back to base64
+        _, buffer = cv2.imencode('.png', img)
+        return base64.b64encode(buffer).decode('utf-8'), None
+    
     except Exception as e:
         print(f"Error processing image: {str(e)}")
-        # If processing fails, copy the original to the output
-        if os.path.exists(input_path):
-            import shutil
-            shutil.copy(input_path, output_path)
-
-# ========== ROUTES ==========
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        # Check if image file was uploaded
-        if 'image' not in request.files:
-            return redirect(request.url)
-        
-        file = request.files['image']
-        
-        # If user doesn't select a file, browser submits an empty file
-        if file.filename == '':
-            return redirect(request.url)
-        
-        # Process the image if it exists
-        if file:
-            # Secure the filename to prevent directory traversal attacks
-            filename = secure_filename(file.filename)
-            
-            # Define file paths
-            input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            output_path = os.path.join(app.config['PROCESSED_FOLDER'], filename)
-            
-            # Save the uploaded file
-            file.save(input_path)
-            
-            # Get image processing parameters
-            intensity = int(request.form.get('intensity', 5))
-            grayscale = request.form.get('grayscale') == 'yes'
-            
-            # Process the image
-            magnify_image(input_path, output_path, intensity, grayscale)
-            
-            # Render the result page
-            return render_template_string(RESULT_HTML, filename=filename, css=CSS_STYLE)
-    
-    # Render the index page for GET requests
-    return render_template_string(INDEX_HTML, css=CSS_STYLE)
-
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    """Serve original uploaded files"""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@app.route('/processed/<filename>')
-def processed_file(filename):
-    """Serve processed files"""
-    return send_from_directory(app.config['PROCESSED_FOLDER'], filename)
-
-@app.route('/download/<filename>')
-def download_file(filename):
-    """Download processed files as attachments"""
-    return send_from_directory(app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
+        return None, str(e)
 
 if __name__ == '__main__':
     app.run(debug=True)
