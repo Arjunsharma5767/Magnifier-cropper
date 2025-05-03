@@ -1,21 +1,3 @@
-
-The user wants me to integrate the provided CSS and HTML into the existing Python Flask app file as inline templates and CSS, reducing the complexity and retaining a single-file app for easy deployment. The previous code suggested moving templates into separate files, but as per the original app and user preference, it is better to keep them inline for simplicity.
-
-I will:
-- Inline the CSS string as CSS_STYLE.
-- Inline the HTML templates as strings (INDEX_HTML, EDITOR_HTML, RESULT_HTML).
-- Keep the Flask app code with improvements to reduce complexity, using the provided CSS and HTML.
-- Keep image processing functions as is.
-- Ensure the code is a single file, well structured, stable, and mobile responsive.
-- Use the CSS and HTML provided from user's initial code.
-
-This will satisfy the user's request to integrate the CSS and HTML in the Python app in a neat way.
-
-Proceeding to create the complete Python file including all these inline strings and logic.
-
-
-`image_magnifier_cropper_app.py`
-```py
 import os
 import cv2
 import numpy as np
