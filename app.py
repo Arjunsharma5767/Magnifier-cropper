@@ -1,21 +1,10 @@
 import os
-import cv2
-import numpy as np
-from flask import Flask, request, send_from_directory, render_template_string, url_for, redirect, jsonify
-from werkzeug.utils import secure_filename
 import base64
-import io
-from PIL import Image
+from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['PROCESSED_FOLDER'] = 'processed'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
-# Create directories if they don't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['PROCESSED_FOLDER'], exist_ok=True)
-
-# ========== CSS ==========
 CSS_STYLE = """
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -67,6 +56,7 @@ input[type="file"] {
   padding: 20px;
   background: #f8f9fa;
   border-radius: 10px;
+  text-align: left;
 }
 .button {
   padding: 12px 24px;
@@ -151,6 +141,10 @@ img {
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
   transition: transform 0.3s ease;
+  position: relative;
+  left: 0;
+  top: 0;
+  user-select: none;
 }
 img:hover {
   transform: scale(1.03);
@@ -171,12 +165,10 @@ img:hover {
 .checkbox-container {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
   margin: 15px 0;
   padding: 5px;
 }
 .checkbox-container input[type="checkbox"] {
-  display: inline-block;
   width: 18px;
   height: 18px;
   margin-right: 10px;
@@ -187,28 +179,6 @@ img:hover {
   color: #555;
   cursor: pointer;
 }
-.magnifier-container {
-  position: relative;
-  max-width: 700px;
-  margin: 0 auto;
-  overflow: hidden;
-  border: 2px solid #ddd;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
-.magnifier-image {
-  width: 100%;
-  display: block;
-  cursor: move;
-}
-.image-preview {
-  max-width: 100%;
-  max-height: 400px;
-  margin: 0 auto 20px;
-  display: block;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
 #magnified-image-container {
   width: 100%;
   height: 400px;
@@ -217,17 +187,19 @@ img:hover {
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
   margin-top: 20px;
+  touch-action: none;
 }
 #magnified-image {
   position: absolute;
-  transform-origin: top left;
-  cursor: move;
+  cursor: grab;
 }
-.no-select {
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+#selection-box {
+  position: absolute;
+  border: 2px dashed #ea4335;
+  background-color: rgba(234, 67, 53, 0.2);
+  pointer-events: none;
+  display: none;
+  z-index: 10;
 }
 #zoom-info {
   margin-top: 10px;
@@ -255,27 +227,11 @@ img:hover {
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
-#selection-box {
-  position: absolute;
-  border: 2px dashed #ea4335;
-  background-color: rgba(234, 67, 53, 0.2);
-  pointer-events: none;
-  display: none;
-}
-#cropped-image-container {
-  display: none;
-  margin-top: 30px;
-}
-#cropped-image {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
 .tabs {
   display: flex;
   justify-content: center;
   margin-bottom: 20px;
+  user-select: none;
 }
 .tab {
   padding: 10px 20px;
@@ -295,651 +251,671 @@ img:hover {
 .tab-content.active {
   display: block;
 }
+@media (max-width: 600px) {
+  .container {
+    padding: 20px;
+  }
+  img {
+    max-width: 100%;
+    max-height: 300px;
+  }
+  #magnified-image-container {
+    height: 300px;
+  }
+}
 """
 
-# ========== INDEX HTML ==========
 INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Magnifier & Cropper</title>
-  <style>{{ css }}</style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Image Magnifier & Cropper</title>
+<style>{{ css }}</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🔍 Image Magnifier & Cropper</h1>
-    <div id="upload-section">
-      <div class="upload-area" id="drop-area" onclick="document.getElementById('file-input').click()">
-        <div class="upload-icon">📁</div>
-        <p>Click to select or drag and drop an image</p>
-      </div>
-      <input type="file" id="file-input" name="image" accept="image/*">
+<div class="container">
+  <h1>🔍 Image Magnifier & Cropper</h1>
+  <div id="upload-section">
+    <div class="upload-area" id="drop-area" tabindex="0" role="button" aria-label="Upload image" onclick="fileInput.click()" onkeypress="if(event.key==='Enter'){fileInput.click();}">
+      <div class="upload-icon">📁</div>
+      <p>Click to select or drag and drop an image</p>
     </div>
-    
-    <div id="magnifier-section" style="display: none;">
-      <div class="tabs">
-        <div class="tab active" data-tab="original">Original Image</div>
-        <div class="tab" data-tab="cropped" id="cropped-tab" style="display: none;">Cropped Image</div>
-      </div>
-      
-      <div id="original-tab-content" class="tab-content active">
-        <div class="control-panel">
-          <div class="slider-container">
-            <label for="intensity">Magnification Level: <span id="intensity-value">1</span>x</label>
-            <input type="range" id="intensity" name="intensity" class="slider" min="1" max="5" value="1" step="0.1">
-          </div>
-          <div class="checkbox-container">
-            <input type="checkbox" id="grayscale" name="grayscale">
-            <label for="grayscale">Convert to Grayscale</label>
-          </div>
-          <div class="checkbox-container">
-            <input type="checkbox" id="selection-mode" name="selection-mode">
-            <label for="selection-mode">Enable Selection Mode</label>
-          </div>
-          <div class="instructions">
-            <p>Drag to pan around the image. Use the slider to zoom in. Enable selection mode and drag to select an area for cropping.</p>
-          </div>
+    <input type="file" id="file-input" name="image" accept="image/*" />
+  </div>
+
+  <div id="magnifier-section" style="display:none;">
+    <div class="tabs" role="tablist">
+      <div class="tab active" data-tab="original" role="tab" tabindex="0" aria-selected="true" aria-controls="original-tab-content" id="original-tab">Original Image</div>
+      <div class="tab" data-tab="cropped" id="cropped-tab" style="display:none;" role="tab" tabindex="-1" aria-selected="false" aria-controls="cropped-tab-content">Cropped Image</div>
+    </div>
+
+    <div id="original-tab-content" class="tab-content active" role="tabpanel" aria-labelledby="original-tab">
+      <div class="control-panel">
+        <div class="slider-container">
+          <label for="intensity">Magnification Level: <span id="intensity-value">1</span>x</label>
+          <input type="range" id="intensity" min="1" max="5" value="1" step="0.1" class="slider" />
         </div>
-        
-        <div id="magnified-image-container" class="no-select">
-          <div class="loading" id="loading-indicator">Processing...</div>
-          <img id="magnified-image" src="">
-          <div id="selection-box"></div>
+        <div class="checkbox-container">
+          <input type="checkbox" id="grayscale" />
+          <label for="grayscale">Convert to Grayscale</label>
         </div>
-        <div id="zoom-info">Current zoom: 1.0x</div>
-        
-        <div class="action-buttons">
-          <button id="process-btn" class="button process">✂️ Crop Selected Area</button>
-          <button id="download-btn" class="button download">⬇️ Download Magnified Image</button>
-          <button id="new-image-btn" class="button">⏪ Upload New Image</button>
+        <div class="checkbox-container">
+          <input type="checkbox" id="selection-mode" />
+          <label for="selection-mode">Enable Selection Mode</label>
+        </div>
+        <div class="instructions">
+          <p>Drag to pan around the image. Use the slider to zoom in. Enable selection mode and drag to select an area for cropping.</p>
         </div>
       </div>
-      
-      <div id="cropped-tab-content" class="tab-content">
-        <div class="control-panel">
-          <div class="slider-container">
-            <label for="cropped-intensity">Magnification Level: <span id="cropped-intensity-value">1</span>x</label>
-            <input type="range" id="cropped-intensity" name="cropped-intensity" class="slider" min="1" max="5" value="1" step="0.1">
-          </div>
-          <div class="checkbox-container">
-            <input type="checkbox" id="cropped-grayscale" name="cropped-grayscale">
-            <label for="cropped-grayscale">Convert to Grayscale</label>
-          </div>
-          <div class="instructions">
-            <p>Drag to pan around the cropped image. Use the slider to zoom in.</p>
-          </div>
+      <div id="magnified-image-container">
+        <div class="loading" id="loading-indicator">Processing...</div>
+        <img id="magnified-image" src="" alt="Original Image" />
+        <div id="selection-box"></div>
+      </div>
+      <div id="zoom-info">Current zoom: 1.0x</div>
+      <div class="action-buttons">
+        <button id="process-btn" class="button process">✂️ Crop Selected Area</button>
+        <button id="download-btn" class="button download">⬇️ Download Magnified Image</button>
+        <button id="new-image-btn" class="button">⏪ Upload New Image</button>
+      </div>
+    </div>
+
+    <div id="cropped-tab-content" class="tab-content" role="tabpanel" aria-labelledby="cropped-tab">
+      <div class="control-panel">
+        <div class="slider-container">
+          <label for="cropped-intensity">Magnification Level: <span id="cropped-intensity-value">1</span>x</label>
+          <input type="range" id="cropped-intensity" min="1" max="5" value="1" step="0.1" class="slider" />
         </div>
-        
-        <div id="cropped-image-container" class="no-select">
-          <div class="loading" id="cropped-loading-indicator">Processing...</div>
-          <img id="cropped-image" src="">
+        <div class="checkbox-container">
+          <input type="checkbox" id="cropped-grayscale" />
+          <label for="cropped-grayscale">Convert to Grayscale</label>
         </div>
-        <div id="cropped-zoom-info">Current zoom: 1.0x</div>
-        
-        <div class="action-buttons">
-          <button id="cropped-download-btn" class="button download">⬇️ Download Cropped Image</button>
-          <button id="back-to-original-btn" class="button">⏪ Back to Original</button>
+        <div class="instructions">
+          <p>Drag to pan around the cropped image. Use the slider to zoom in.</p>
         </div>
+      </div>
+      <div id="cropped-image-container">
+        <div class="loading" id="cropped-loading-indicator">Processing...</div>
+        <img id="cropped-image" src="" alt="Cropped Image" />
+      </div>
+      <div id="cropped-zoom-info">Current zoom: 1.0x</div>
+      <div class="action-buttons">
+        <button id="cropped-download-btn" class="button download">⬇️ Download Cropped Image</button>
+        <button id="back-to-original-btn" class="button">⏪ Back to Original</button>
       </div>
     </div>
   </div>
-  
-  <script>
-    // DOM Elements
-    const dropArea = document.getElementById('drop-area');
-    const fileInput = document.getElementById('file-input');
-    const uploadSection = document.getElementById('upload-section');
-    const magnifierSection = document.getElementById('magnifier-section');
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
-    const croppedTab = document.getElementById('cropped-tab');
-    
-    // Original image elements
-    const intensitySlider = document.getElementById('intensity');
-    const intensityValue = document.getElementById('intensity-value');
-    const grayscaleCheckbox = document.getElementById('grayscale');
-    const selectionModeCheckbox = document.getElementById('selection-mode');
-    const magnifiedImage = document.getElementById('magnified-image');
-    const magnifiedContainer = document.getElementById('magnified-image-container');
-    const selectionBox = document.getElementById('selection-box');
-    const zoomInfo = document.getElementById('zoom-info');
-    const processBtn = document.getElementById('process-btn');
-    const downloadBtn = document.getElementById('download-btn');
-    const newImageBtn = document.getElementById('new-image-btn');
-    const loadingIndicator = document.getElementById('loading-indicator');
-    
-    // Cropped image elements
-    const croppedIntensitySlider = document.getElementById('cropped-intensity');
-    const croppedIntensityValue = document.getElementById('cropped-intensity-value');
-    const croppedGrayscaleCheckbox = document.getElementById('cropped-grayscale');
-    const croppedImage = document.getElementById('cropped-image');
-    const croppedContainer = document.getElementById('cropped-image-container');
-    const croppedZoomInfo = document.getElementById('cropped-zoom-info');
-    const croppedDownloadBtn = document.getElementById('cropped-download-btn');
-    const backToOriginalBtn = document.getElementById('back-to-original-btn');
-    const croppedLoadingIndicator = document.getElementById('cropped-loading-indicator');
-    
-    // Variables for dragging
-    let isDragging = false;
-    let startX, startY, startLeft, startTop;
-    let currentScale = 1.0;
-    let croppedCurrentScale = 1.0;
-    let originalImageWidth, originalImageHeight;
-    let croppedImageWidth, croppedImageHeight;
-    let imageData = null;
-    let croppedImageData = null;
-    
-    // Variables for selection
-    let isSelecting = false;
-    let selectionStartX, selectionStartY;
-    let selectionLeft, selectionTop, selectionWidth, selectionHeight;
-    let selectionActive = false;
-    
-    // Tab switching
-    tabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        const tabId = tab.getAttribute('data-tab');
-        
-        // Remove active class from all tabs and contents
-        tabs.forEach(t => t.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        
-        // Add active class to current tab and content
-        tab.classList.add('active');
-        document.getElementById(`${tabId}-tab-content`).classList.add('active');
-      });
-    });
-    
-    // Event Listeners for drag and drop
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      dropArea.addEventListener(eventName, preventDefaults, false);
-    });
-    
-    function preventDefaults(e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropArea.addEventListener(eventName, highlight, false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropArea.addEventListener(eventName, unhighlight, false);
-    });
-    
-    function highlight() {
-      dropArea.style.borderColor = '#4285f4';
-      dropArea.style.backgroundColor = '#f0f7ff';
-    }
-    
-    function unhighlight() {
-      dropArea.style.borderColor = '#ccc';
-      dropArea.style.backgroundColor = 'transparent';
-    }
-    
-    // File Upload Handling
-    dropArea.addEventListener('drop', handleDrop, false);
-    fileInput.addEventListener('change', handleFileSelect, false);
-    
-    function handleDrop(e) {
-      const dt = e.dataTransfer;
-      const files = dt.files;
-      if (files.length) {
-        handleFiles(files);
-      }
-    }
-    
-    function handleFileSelect(e) {
-      const files = e.target.files;
-      if (files.length) {
-        handleFiles(files);
-      }
-    }
-    
-    function handleFiles(files) {
-      if (files[0].type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          imageData = e.target.result;
-          setupMagnifier(imageData);
-        };
-        reader.readAsDataURL(files[0]);
-      } else {
-        alert("Please select an image file.");
-      }
-    }
-    
-    // Setup Magnifier
-    function setupMagnifier(imageUrl) {
-      // Switch from upload to magnifier view
-      uploadSection.style.display = 'none';
-      magnifierSection.style.display = 'block';
-      
-      // Reset zoom and position
-      currentScale = 1.0;
-      intensitySlider.value = 1;
-      intensityValue.textContent = '1';
-      zoomInfo.textContent = 'Current zoom: 1.0x';
-      
-      // Reset selection
-      selectionBox.style.display = 'none';
-      selectionModeCheckbox.checked = false;
-      selectionActive = false;
-      
-      // Hide cropped tab
-      croppedTab.style.display = 'none';
-      tabs[0].classList.add('active');
-      tabs[1].classList.remove('active');
-      tabContents[0].classList.add('active');
-      tabContents[1].classList.remove('active');
-      
-      // Load image
-      const img = new Image();
-      img.onload = function() {
-        originalImageWidth = this.width;
-        originalImageHeight = this.height;
-        
-        // Set initial image
-        magnifiedImage.src = imageUrl;
-        magnifiedImage.style.width = '100%';
-        magnifiedImage.style.height = 'auto';
-        magnifiedImage.style.top = '0';
-        magnifiedImage.style.left = '0';
-        magnifiedImage.style.transform = 'scale(1)';
-        
-        // Apply grayscale if needed
-        applyGrayscale();
-      };
-      img.src = imageUrl;
-    }
-    
-    // Setup Cropped Image
-    function setupCroppedImage(imageUrl) {
-      // Show cropped tab
-      croppedTab.style.display = 'block';
-      
-      // Reset zoom and position for cropped image
-      croppedCurrentScale = 1.0;
-      croppedIntensitySlider.value = 1;
-      croppedIntensityValue.textContent = '1';
-      croppedZoomInfo.textContent = 'Current zoom: 1.0x';
-      
-      // Load cropped image
-      const img = new Image();
-      img.onload = function() {
-        croppedImageWidth = this.width;
-        croppedImageHeight = this.height;
-        
-        // Set initial cropped image
-        croppedImage.src = imageUrl;
-        croppedImage.style.width = '100%';
-        croppedImage.style.height = 'auto';
-        croppedImage.style.top = '0';
-        croppedImage.style.left = '0';
-        croppedImage.style.transform = 'scale(1)';
-        
-        // Apply grayscale if needed
-        applyCroppedGrayscale();
-        
-        // Switch to cropped tab
-        croppedTab.click();
-      };
-      img.src = imageUrl;
-      croppedImageData = imageUrl;
-    }
-    
-    // Magnification Control
-    intensitySlider.addEventListener('input', updateMagnification);
-    grayscaleCheckbox.addEventListener('change', applyGrayscale);
-    selectionModeCheckbox.addEventListener('change', toggleSelectionMode);
-    
-    function updateMagnification() {
-      currentScale = parseFloat(intensitySlider.value);
-      intensityValue.textContent = currentScale.toFixed(1);
-      zoomInfo.textContent = `Current zoom: ${currentScale.toFixed(1)}x`;
-      
-      // Apply transform
-      magnifiedImage.style.transform = `scale(${currentScale})`;
-      
-      // Center the image when zooming
-      centerImage();
-      
-      // Reset selection when zooming
-      if (selectionActive) {
-        selectionBox.style.display = 'none';
-        selectionActive = false;
-      }
-    }
-    
-    function centerImage() {
-      const containerWidth = magnifiedContainer.clientWidth;
-      const containerHeight = magnifiedContainer.clientHeight;
-      
-      // Calculate scaled image dimensions
-      const scaledWidth = originalImageWidth * currentScale;
-      const scaledHeight = originalImageHeight * currentScale;
-      
-      // Center the image
-      let leftPos = (containerWidth - scaledWidth) / 2;
-      let topPos = (containerHeight - scaledHeight) / 2;
-      
-      // Ensure the image doesn't get positioned outside the viewable area
-      leftPos = Math.min(0, Math.max(leftPos, containerWidth - scaledWidth));
-      topPos = Math.min(0, Math.max(topPos, containerHeight - scaledHeight));
-      
-      magnifiedImage.style.left = `${leftPos}px`;
-      magnifiedImage.style.top = `${topPos}px`;
-    }
-    
-    // Cropped Image Controls
-    croppedIntensitySlider.addEventListener('input', updateCroppedMagnification);
-    croppedGrayscaleCheckbox.addEventListener('change', applyCroppedGrayscale);
-    
-    function updateCroppedMagnification() {
-      croppedCurrentScale = parseFloat(croppedIntensitySlider.value);
-      croppedIntensityValue.textContent = croppedCurrentScale.toFixed(1);
-      croppedZoomInfo.textContent = `Current zoom: ${croppedCurrentScale.toFixed(1)}x`;
-      
-      // Apply transform
-      croppedImage.style.transform = `scale(${croppedCurrentScale})`;
-      
-      // Center the cropped image
-      centerCroppedImage();
-    }
-    
-    function centerCroppedImage() {
-      const containerWidth = croppedContainer.clientWidth;
-      const containerHeight = croppedContainer.clientHeight;
-      
-      // Calculate scaled image dimensions
-      const scaledWidth = croppedImageWidth * croppedCurrentScale;
-      const scaledHeight = croppedImageHeight * croppedCurrentScale;
-      
-      // Center the image
-      let leftPos = (containerWidth - scaledWidth) / 2;
-      let topPos = (containerHeight - scaledHeight) / 2;
-      
-      // Ensure the image doesn't get positioned outside the viewable area
-      leftPos = Math.min(0, Math.max(leftPos, containerWidth - scaledWidth));
-      topPos = Math.min(0, Math.max(topPos, containerHeight - scaledHeight));
-      
-      croppedImage.style.left = `${leftPos}px`;
-      croppedImage.style.top = `${topPos}px`;
-    }
-    
-    // Grayscale Control
-    function applyGrayscale() {
-      loadingIndicator.style.display = 'block';
-      
-      // Small timeout to allow loading indicator to appear
-      setTimeout(() => {
-        if (grayscaleCheckbox.checked) {
-          magnifiedImage.style.filter = 'grayscale(100%)';
-        } else {
-          magnifiedImage.style.filter = 'none';
-        }
-        loadingIndicator.style.display = 'none';
-      }, 100);
-    }
-    
-    function applyCroppedGrayscale() {
-      croppedLoadingIndicator.style.display = 'block';
-      
-      // Small timeout to allow loading indicator to appear
-      setTimeout(() => {
-        if (croppedGrayscaleCheckbox.checked) {
-          croppedImage.style.filter = 'grayscale(100%)';
-        } else {
-          croppedImage.style.filter = 'none';
-        }
-        croppedLoadingIndicator.style.display = 'none';
-      }, 100);
-    }
-    
-    // Toggle Selection Mode
-    function toggleSelectionMode() {
-      if (selectionModeCheckbox.checked) {
-        // Enable selection mode
-        magnifiedImage.style.cursor = 'crosshair';
-        
-        // Reset current selection if any
-        selectionBox.style.display = 'none';
-        selectionActive = false;
-        
-        // Add mouse events for selection
-        magnifiedContainer.addEventListener('mousedown', startSelection);
-        document.addEventListener('mousemove', updateSelection);
-        document.addEventListener('mouseup', endSelection);
-        
-        // Add touch events for selection
-        magnifiedContainer.addEventListener('touchstart', startSelectionTouch);
-        document.addEventListener('touchmove', updateSelectionTouch);
-        document.addEventListener('touchend', endSelection);
-      } else {
-        // Disable selection mode
-        magnifiedImage.style.cursor = 'move';
-        
-        // Remove selection events
-        magnifiedContainer.removeEventListener('mousedown', startSelection);
-        document.removeEventListener('mousemove', updateSelection);
-        document.removeEventListener('mouseup', endSelection);
-        
-        magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
-        document.removeEventListener('touchmove', updateSelectionTouch);
-        document.removeEventListener('touchend', endSelection);
-      }
-    }
-    
-    // Selection functionality
-    function startSelection(e) {
-      e.preventDefault();
-      
-      // Get container position
-      const containerRect = magnifiedContainer.getBoundingClientRect();
-      
-      // Calculate position relative to container
-      selectionStartX = e.clientX - containerRect.left;
-      selectionStartY = e.clientY - containerRect.top;
-      
-      // Start selecting
-      isSelecting = true;
-      
-      // Initialize selection box
-      selectionBox.style.left = selectionStartX + 'px';
-      selectionBox.style.top = selectionStartY + 'px';
-      selectionBox.style.width = '0';
-      selectionBox.style.height = '0';
-      selectionBox.style.display = 'block';
-    }
-    
-    function startSelectionTouch(e) {
-      if (e.touches.length === 1) {
-        e.preventDefault();
-        
-        // Get container position
-        const containerRect = magnifiedContainer.getBoundingClientRect();
-        const touch = e.touches[0];
-        
-        // Calculate position relative to container
-        selectionStartX = touch.clientX - containerRect.left;
-        selectionStartY = touch.clientY - containerRect.top;
-        
-        // Start selecting
-        isSelecting = true;
-        
-        // Initialize selection box
-        selectionBox.style.left = selectionStartX + 'px';
-        selectionBox.style.top = selectionStartY + 'px';
-        selectionBox.style.width = '0';
-        selectionBox.style.height = '0';
-        selectionBox.style.display = 'block';
-      }
-    }
-    
-    function updateSelection(e) {
-      if (!isSelecting) return;
-      
-      // Get container position
-      const containerRect = magnifiedContainer.getBoundingClientRect();
-      
-      // Calculate current position relative to container
-      const currentX = e.clientX - containerRect.left;
-      const currentY = e.clientY - containerRect.top;
-      
-      // Calculate width and height
-      const width = Math.abs(currentX - selectionStartX);
-      const height = Math.abs(currentY - selectionStartY);
-      
-      // Calculate left and top (for when dragging in reverse direction)
-      const left = Math.min(currentX, selectionStartX);
-      const top = Math.min(currentY, selectionStartY);
-      
-      // Update selection box
-      selectionBox.style.left = left + 'px';
-      selectionBox.style.top = top + 'px';
-      selectionBox.style.width = width + 'px';
-      selectionBox.style.height = height + 'px';
-      
-      // Store selection values for later use
-      selectionLeft = left;
-      selectionTop = top;
-      selectionWidth = width;
-      selectionHeight = height;
-    }
-    
-    function updateSelectionTouch(e) {
-      if (!isSelecting || e.touches.length !== 1) return;
-      
-      // Get container position
-      const containerRect = magnifiedContainer.getBoundingClientRect();
-      const touch = e.touches[0];
-      
-      // Calculate current position relative to container
-      const currentX = touch.clientX - containerRect.left;
-      const currentY = touch.clientY - containerRect.top;
-      
-      // Calculate width and height
-            // Ensure the image doesn't get positioned outside the container
-      leftPos = Math.max(0, Math.min(leftPos, 0));
-      topPos = Math.max(0, Math.min(topPos, 0));
-      
-      magnifiedImage.style.left = `${leftPos}px`;
-      magnifiedImage.style.top = `${topPos}px`;
-    }
-    
-    function toggleSelectionMode() {
-      if (selectionModeCheckbox.checked) {
-        selectionActive = true;
-        selectionBox.style.display = 'block';
-        magnifiedImage.style.cursor = 'crosshair';
-      } else {
-        selectionActive = false;
-        selectionBox.style.display = 'none';
-        magnifiedImage.style.cursor = 'move';
-      }
-    }
-    
-    // Selection functionality
-    magnifiedContainer.addEventListener('mousedown', startSelection);
-    magnifiedContainer.addEventListener('mousemove', updateSelection);
-    document.addEventListener('mouseup', endSelection);
-    
-    function startSelection(e) {
-      if (!selectionActive) return;
-      selectionStartX = e.clientX;
-      selectionStartY = e.clientY;
-      selectionBox.style.left = `${selectionStartX}px`;
-      selectionBox.style.top = `${selectionStartY}px`;
-      selectionBox.style.display = 'block';
-      selectionWidth = 0;
-      selectionHeight = 0;
-    }
-    
-    function updateSelection(e) {
-      if (!selectionActive) return;
-      selectionWidth = e.clientX - selectionStartX;
-      selectionHeight = e.clientY - selectionStartY;
-      selectionBox.style.width = `${Math.abs(selectionWidth)}px`;
-      selectionBox.style.height = `${Math.abs(selectionHeight)}px`;
-      selectionBox.style.left = `${Math.min(selectionStartX, e.clientX)}px`;
-      selectionBox.style.top = `${Math.min(selectionStartY, e.clientY)}px`;
-    }
-    
-    function endSelection() {
-      if (!selectionActive) return;
-      selectionActive = false;
-      selectionBox.style.display = 'none';
-      // Process the selected area for cropping
-      processSelection();
-    }
-    
-    function processSelection() {
-      // Get the coordinates of the selection box
-      const rect = selectionBox.getBoundingClientRect();
-      const x = rect.left - magnifiedContainer.getBoundingClientRect().left;
-      const y = rect.top - magnifiedContainer.getBoundingClientRect().top;
-      const width = rect.width;
-      const height = rect.height;
+</div>
 
-      // Crop the image using OpenCV or any other library
-      // This is a placeholder for the actual cropping logic
-      // You would typically send the coordinates to the server for processing
-      console.log(`Cropping image at x: ${x}, y: ${y}, width: ${width}, height: ${height}`);
-      
-      // For demonstration, we will just show the cropped image
-      // In a real application, you would send this data to the server
-      setupCroppedImage(magnifiedImage.src); // Placeholder for cropped image
-    }
-    
-    // Download functionality
-    downloadBtn.addEventListener('click', downloadImage);
-    croppedDownloadBtn.addEventListener('click', downloadCroppedImage);
-    
-    function downloadImage() {
-      const link = document.createElement('a');
-      link.href = magnifiedImage.src;
-      link.download = 'magnified-image.png';
-      link.click();
-    }
-    
-    function downloadCroppedImage() {
-      const link = document.createElement('a');
-      link.href = croppedImage.src;
-      link.download = 'cropped-image.png';
-      link.click();
-    }
-    
-    // New image upload functionality
-    newImageBtn.addEventListener('click', () => {
-      uploadSection.style.display = 'block';
-      magnifierSection.style.display = 'none';
-      fileInput.value = ''; // Reset file input
+<script>
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+const uploadSection = document.getElementById('upload-section');
+const magnifierSection = document.getElementById('magnifier-section');
+const tabs = document.querySelectorAll('.tab');
+const tabContents = document.querySelectorAll('.tab-content');
+const croppedTab = document.getElementById('cropped-tab');
+
+const intensitySlider = document.getElementById('intensity');
+const intensityValue = document.getElementById('intensity-value');
+const grayscaleCheckbox = document.getElementById('grayscale');
+const selectionModeCheckbox = document.getElementById('selection-mode');
+const magnifiedImage = document.getElementById('magnified-image');
+const magnifiedContainer = document.getElementById('magnified-image-container');
+const selectionBox = document.getElementById('selection-box');
+const zoomInfo = document.getElementById('zoom-info');
+const processBtn = document.getElementById('process-btn');
+const downloadBtn = document.getElementById('download-btn');
+const newImageBtn = document.getElementById('new-image-btn');
+const loadingIndicator = document.getElementById('loading-indicator');
+
+const croppedIntensitySlider = document.getElementById('cropped-intensity');
+const croppedIntensityValue = document.getElementById('cropped-intensity-value');
+const croppedGrayscaleCheckbox = document.getElementById('cropped-grayscale');
+const croppedImage = document.getElementById('cropped-image');
+const croppedContainer = document.getElementById('cropped-image-container');
+const croppedZoomInfo = document.getElementById('cropped-zoom-info');
+const croppedDownloadBtn = document.getElementById('cropped-download-btn');
+const backToOriginalBtn = document.getElementById('back-to-original-btn');
+const croppedLoadingIndicator = document.getElementById('cropped-loading-indicator');
+
+let isDragging = false;
+let startX, startY, startLeft, startTop;
+let currentScale = 1.0;
+let croppedCurrentScale = 1.0;
+let originalImageWidth, originalImageHeight;
+let croppedImageWidth, croppedImageHeight;
+let imageData = null;
+let croppedImageData = null;
+
+// Selection variables
+let isSelecting = false;
+let selectionStartX, selectionStartY;
+let selectionCurrentX, selectionCurrentY;
+let selectionActive = false;
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabId = tab.getAttribute('data-tab');
+    tabs.forEach(t => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+      t.setAttribute('tabindex', '-1');
     });
-    
-    backToOriginalBtn.addEventListener('click', () => {
-      tabs[0].click(); // Switch back to original tab
-    });
-    
-    // Grayscale functionality
-    function applyGrayscale() {
-      if (grayscaleCheckbox.checked) {
-        magnifiedImage.style.filter = 'grayscale(100%)';
-      } else {
-        magnifiedImage.style.filter = 'none';
-      }
+    tabContents.forEach(tc => tc.classList.remove('active'));
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected', 'true');
+    tab.setAttribute('tabindex', '0');
+    document.getElementById(`${tabId}-tab-content`).classList.add('active');
+    tab.focus();
+  });
+});
+
+// Accessibility: keyboard support for tabs
+tabs.forEach(tab => {
+  tab.addEventListener('keydown', e => {
+    let index = Array.from(tabs).indexOf(tab);
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      let nextIndex = (index + 1) % tabs.length;
+      tabs[nextIndex].click();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      let prevIndex = (index - 1 + tabs.length) % tabs.length;
+      tabs[prevIndex].click();
     }
-    
-    function applyCroppedGrayscale() {
-      if (croppedGrayscaleCheckbox.checked) {
-        croppedImage.style.filter = 'grayscale(100%)';
-      } else {
-        croppedImage.style.filter = 'none';
-      }
-    }
-  </script>
+  });
+});
+
+// Drag & drop listeners
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, preventDefaults, false);
+});
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+['dragenter', 'dragover'].forEach(eventName =>
+  dropArea.addEventListener(eventName, () => {
+    dropArea.style.borderColor = '#4285f4';
+    dropArea.style.backgroundColor = '#f0f7ff';
+  })
+);
+['dragleave', 'drop'].forEach(eventName =>
+  dropArea.addEventListener(eventName, () => {
+    dropArea.style.borderColor = '#ccc';
+    dropArea.style.backgroundColor = 'transparent';
+  })
+);
+
+dropArea.addEventListener('drop', e => {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  if (files.length) handleFiles(files);
+});
+fileInput.addEventListener('change', e => {
+  const files = e.target.files;
+  if (files.length) handleFiles(files);
+});
+
+function handleFiles(files) {
+  if (files[0].type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      imageData = e.target.result;
+      setupMagnifier(imageData);
+    };
+    reader.readAsDataURL(files[0]);
+  } else {
+    alert('Please select an image file.');
+  }
+}
+
+function setupMagnifier(imageUrl) {
+  uploadSection.style.display = 'none';
+  magnifierSection.style.display = 'block';
+
+  currentScale = 1.0;
+  intensitySlider.value = 1;
+  intensityValue.textContent = '1';
+  zoomInfo.textContent = 'Current zoom: 1.0x';
+
+  selectionBox.style.display = 'none';
+  selectionModeCheckbox.checked = false;
+  selectionActive = false;
+
+  croppedTab.style.display = 'none';
+  tabs[0].classList.add('active');
+  tabs[0].setAttribute('aria-selected', 'true');
+  tabs[0].setAttribute('tabindex', '0');
+  tabs[1].classList.remove('active');
+  tabs[1].setAttribute('aria-selected', 'false');
+  tabs[1].setAttribute('tabindex', '-1');
+  tabContents[0].classList.add('active');
+  tabContents[1].classList.remove('active');
+
+  const img = new Image();
+  img.onload = function() {
+    originalImageWidth = this.width;
+    originalImageHeight = this.height;
+    magnifiedImage.src = imageUrl;
+    magnifiedImage.style.width = '100%';
+    magnifiedImage.style.height = 'auto';
+    magnifiedImage.style.top = '0px';
+    magnifiedImage.style.left = '0px';
+    magnifiedImage.style.transform = 'scale(1)';
+    applyGrayscale();
+    setupDragging();
+  };
+  img.src = imageUrl;
+}
+
+function setupDragging() {
+  magnifiedContainer.addEventListener('mousedown', startDragging);
+  document.addEventListener('mousemove', dragImage);
+  document.addEventListener('mouseup', stopDragging);
+
+  magnifiedContainer.addEventListener('touchstart', startDraggingTouch, {passive:false});
+  document.addEventListener('touchmove', dragImageTouch, {passive:false});
+  document.addEventListener('touchend', stopDragging);
+
+  croppedContainer.addEventListener('mousedown', startCroppedDragging);
+  document.addEventListener('mousemove', dragCroppedImage);
+  document.addEventListener('mouseup', stopCroppedDragging);
+
+  croppedContainer.addEventListener('touchstart', startCroppedDraggingTouch, {passive:false});
+  document.addEventListener('touchmove', dragCroppedImageTouch, {passive:false});
+  document.addEventListener('touchend', stopCroppedDragging);
+}
+
+function startDragging(e) {
+  if (selectionModeCheckbox.checked) return;
+  e.preventDefault();
+  isDragging = true;
+
+  startX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+  startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+
+  startLeft = parseInt(magnifiedImage.style.left) || 0;
+  startTop = parseInt(magnifiedImage.style.top) || 0;
+}
+
+function startDraggingTouch(e) {
+  if (selectionModeCheckbox.checked) return;
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    isDragging = true;
+
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+
+    startLeft = parseInt(magnifiedImage.style.left) || 0;
+    startTop = parseInt(magnifiedImage.style.top) || 0;
+  }
+}
+
+function dragImage(e) {
+  if (!isDragging) return;
+  e.preventDefault();
+
+  const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+  const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+
+  const dx = clientX - startX;
+  const dy = clientY - startY;
+
+  let newLeft = startLeft + dx;
+  let newTop = startTop + dy;
+
+  const containerWidth = magnifiedContainer.clientWidth;
+  const containerHeight = magnifiedContainer.clientHeight;
+  const imageWidth = originalImageWidth * currentScale;
+  const imageHeight = originalImageHeight * currentScale;
+
+  const minLeft = Math.min(0, containerWidth - imageWidth);
+  const maxLeft = 0;
+  const minTop = Math.min(0, containerHeight - imageHeight);
+  const maxTop = 0;
+
+  newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+  newTop = Math.max(minTop, Math.min(maxTop, newTop));
+
+  magnifiedImage.style.left = newLeft + 'px';
+  magnifiedImage.style.top = newTop + 'px';
+}
+
+function dragImageTouch(e) {
+  if (e.touches.length === 1) {
+    dragImage(e);
+  }
+}
+
+function stopDragging() {
+  isDragging = false;
+}
+
+// Cropped image drag vars
+let isCroppedDragging = false;
+let croppedStartX, croppedStartY, croppedStartLeft, croppedStartTop;
+
+function startCroppedDragging(e) {
+  e.preventDefault();
+  isCroppedDragging = true;
+  croppedStartX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+  croppedStartY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+
+  croppedStartLeft = parseInt(croppedImage.style.left) || 0;
+  croppedStartTop = parseInt(croppedImage.style.top) || 0;
+}
+
+function startCroppedDraggingTouch(e) {
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    isCroppedDragging = true;
+    const touch = e.touches[0];
+    croppedStartX = touch.clientX;
+    croppedStartY = touch.clientY;
+    croppedStartLeft = parseInt(croppedImage.style.left) || 0;
+    croppedStartTop = parseInt(croppedImage.style.top) || 0;
+  }
+}
+
+function dragCroppedImage(e) {
+  if (!isCroppedDragging) return;
+  e.preventDefault();
+  const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+  const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+  const dx = clientX - croppedStartX;
+  const dy = clientY - croppedStartY;
+
+  let newLeft = croppedStartLeft + dx;
+  let newTop = croppedStartTop + dy;
+
+  const containerWidth = croppedContainer.clientWidth;
+  const containerHeight = croppedContainer.clientHeight;
+  const imageWidth = croppedImageWidth * croppedCurrentScale;
+  const imageHeight = croppedImageHeight * croppedCurrentScale;
+
+  const minLeft = Math.min(0, containerWidth - imageWidth);
+  const maxLeft = 0;
+  const minTop = Math.min(0, containerHeight - imageHeight);
+  const maxTop = 0;
+
+  newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+  newTop = Math.max(minTop, Math.min(maxTop, newTop));
+
+  croppedImage.style.left = newLeft + 'px';
+  croppedImage.style.top = newTop + 'px';
+}
+
+function dragCroppedImageTouch(e) {
+  if (e.touches.length === 1) {
+    dragCroppedImage(e);
+  }
+}
+
+function stopCroppedDragging() {
+  isCroppedDragging = false;
+}
+
+function setupCroppedImage(imageUrl) {
+  croppedTab.style.display = 'block';
+
+  croppedCurrentScale = 1.0;
+  croppedIntensitySlider.value = 1;
+  croppedIntensityValue.textContent = '1';
+  croppedZoomInfo.textContent = 'Current zoom: 1.0x';
+
+  croppedImage.style.left = '0px';
+  croppedImage.style.top = '0px';
+  croppedImage.style.transform = 'scale(1)';
+  croppedImage.src = imageUrl;
+
+  croppedImage.onload = () => {
+    croppedImageWidth = croppedImage.naturalWidth;
+    croppedImageHeight = croppedImage.naturalHeight;
+  };
+
+  tabs[1].click(); // Switch tab to cropped image
+}
+
+function getCroppedArea() {
+  if (!selectionActive) return null;
+  const rect = selectionBox.getBoundingClientRect();
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+
+  // Calculate x,y relative to image's current position and scale
+  const imgLeft = parseInt(magnifiedImage.style.left) || 0;
+  const imgTop = parseInt(magnifiedImage.style.top) || 0;
+  // position of selection box relative to container
+  const selX = rect.left - containerRect.left;
+  const selY = rect.top - containerRect.top;
+
+  // Calculate image coordinates for cropped area
+  const scale = currentScale;
+  let x = (selX - imgLeft) / scale;
+  let y = (selY - imgTop) / scale;
+  let width = rect.width / scale;
+  let height = rect.height / scale;
+
+  // Clamp values inside original image bounds
+  x = Math.max(0, x);
+  y = Math.max(0, y);
+  width = Math.min(originalImageWidth - x, width);
+  height = Math.min(originalImageHeight - y, height);
+
+  if (width <= 0 || height <= 0) return null;
+  return { x: x, y: y, width: width, height: height };
+}
+
+function cropImage(imageDataUrl, croppedArea) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous"; // To avoid CORS issues for local usage
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = croppedArea.width;
+      canvas.height = croppedArea.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, croppedArea.x, croppedArea.y, croppedArea.width, croppedArea.height, 0, 0, croppedArea.width, croppedArea.height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('Failed to load image for cropping'));
+    img.src = imageDataUrl;
+  });
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!selectionActive) {
+    alert('Please enable selection mode and select an area to crop.');
+    return;
+  }
+  const area = getCroppedArea();
+  if (!area) {
+    alert('Invalid crop selection.');
+    return;
+  }
+  loadingIndicator.style.display = 'block';
+  try {
+    const croppedUrl = await cropImage(imageData, area);
+    croppedImageData = croppedUrl;
+    setupCroppedImage(croppedImageData);
+    croppedTab.style.display = 'block';
+  } catch (error) {
+    alert('Error cropping image: ' + error.message);
+  } finally {
+    loadingIndicator.style.display = 'none';
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!imageData) return;
+  downloadImage(magnifiedImage.src, 'magnified-image.png');
+});
+
+newImageBtn.addEventListener('click', () => {
+  resetImage();
+});
+
+croppedDownloadBtn.addEventListener('click', () => {
+  if (!croppedImageData) return;
+  downloadImage(croppedImage.src, 'cropped-image.png');
+});
+
+backToOriginalBtn.addEventListener('click', () => {
+  tabs[0].click();
+});
+
+function downloadImage(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function resetImage() {
+  imageData = null;
+  croppedImageData = null;
+  selectionActive = false;
+  selectionBox.style.display = 'none';
+  selectionModeCheckbox.checked = false;
+  uploadSection.style.display = 'block';
+  magnifierSection.style.display = 'none';
+
+  magnifiedImage.src = '';
+  croppedImage.src = '';
+  magnifiedImage.style.left = '0px';
+  magnifiedImage.style.top = '0px';
+  magnifiedImage.style.transform = 'scale(1)';
+  croppedImage.style.left = '0px';
+  croppedImage.style.top = '0px';
+  croppedImage.style.transform = 'scale(1)';
+
+  intensitySlider.value = 1;
+  intensityValue.textContent = '1';
+  zoomInfo.textContent = 'Current zoom: 1.0x';
+
+  croppedIntensitySlider.value = 1;
+  croppedIntensityValue.textContent = '1';
+  croppedZoomInfo.textContent = 'Current zoom: 1.0x';
+
+  croppedTab.style.display = 'none';
+}
+
+// Grayscale effect functions
+grayscaleCheckbox.addEventListener('change', () => applyGrayscale());
+croppedGrayscaleCheckbox.addEventListener('change', () => applyCroppedGrayscale());
+
+function applyGrayscale() {
+  magnifiedImage.style.filter = grayscaleCheckbox.checked ? 'grayscale(100%)' : 'none';
+}
+
+function applyCroppedGrayscale() {
+  croppedImage.style.filter = croppedGrayscaleCheckbox.checked ? 'grayscale(100%)' : 'none';
+}
+
+// Zoom sliders events
+intensitySlider.addEventListener('input', () => {
+  currentScale = parseFloat(intensitySlider.value);
+  intensityValue.textContent = currentScale.toFixed(1);
+  magnifiedImage.style.transform = `scale(${currentScale})`;
+  zoomInfo.textContent = `Current zoom: ${currentScale.toFixed(1)}x`;
+});
+
+croppedIntensitySlider.addEventListener('input', () => {
+  croppedCurrentScale = parseFloat(croppedIntensitySlider.value);
+  croppedIntensityValue.textContent = croppedCurrentScale.toFixed(1);
+  croppedImage.style.transform = `scale(${croppedCurrentScale})`;
+  croppedZoomInfo.textContent = `Current zoom: ${croppedCurrentScale.toFixed(1)}x`;
+});
+
+// Selection box mouse/touch events for cropping
+magnifiedContainer.addEventListener('mousedown', startSelection);
+magnifiedContainer.addEventListener('touchstart', startSelectionTouch, {passive:false});
+document.addEventListener('mousemove', moveSelection);
+document.addEventListener('touchmove', moveSelectionTouch, {passive:false});
+document.addEventListener('mouseup', endSelection);
+document.addEventListener('touchend', endSelection);
+
+function startSelection(e) {
+  if (!selectionModeCheckbox.checked) return;
+  e.preventDefault();
+  isSelecting = true;
+  const rect = magnifiedContainer.getBoundingClientRect();
+  const clientX = e.clientX;
+  const clientY = e.clientY;
+  selectionStartX = clientX - rect.left;
+  selectionStartY = clientY - rect.top;
+  selectionBox.style.display = 'block';
+  selectionBox.style.left = selectionStartX + 'px';
+  selectionBox.style.top = selectionStartY + 'px';
+  selectionBox.style.width = '0px';
+  selectionBox.style.height = '0px';
+}
+
+function startSelectionTouch(e) {
+  if (!selectionModeCheckbox.checked) return;
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    const rect = magnifiedContainer.getBoundingClientRect();
+    const touch = e.touches[0];
+    selectionStartX = touch.clientX - rect.left;
+    selectionStartY = touch.clientY - rect.top;
+    selectionBox.style.display = 'block';
+    selectionBox.style.left = selectionStartX + 'px';
+    selectionBox.style.top = selectionStartY + 'px';
+    selectionBox.style.width = '0px';
+    selectionBox.style.height = '0px';
+    isSelecting = true;
+  }
+}
+
+function moveSelection(e) {
+  if (!isSelecting) return;
+  e.preventDefault();
+  const rect = magnifiedContainer.getBoundingClientRect();
+  const clientX = e.clientX;
+  const clientY = e.clientY;
+  updateSelectionBox(clientX - rect.left, clientY - rect.top);
+}
+
+function moveSelectionTouch(e) {
+  if (!isSelecting) return;
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    const rect = magnifiedContainer.getBoundingClientRect();
+    const touch = e.touches[0];
+    updateSelectionBox(touch.clientX - rect.left, touch.clientY - rect.top);
+  }
+}
+
+function updateSelectionBox(currentX, currentY) {
+  const x = Math.min(currentX, selectionStartX);
+  const y = Math.min(currentY, selectionStartY);
+  const width = Math.abs(currentX - selectionStartX);
+  const height = Math.abs(currentY - selectionStartY);
+  // Clamp within container
+  const maxWidth = magnifiedContainer.clientWidth;
+  const maxHeight = magnifiedContainer.clientHeight;
+  selectionBox.style.left = Math.max(0, Math.min(x, maxWidth)) + 'px';
+  selectionBox.style.top = Math.max(0, Math.min(y, maxHeight)) + 'px';
+  selectionBox.style.width = Math.min(width, maxWidth) + 'px';
+  selectionBox.style.height = Math.min(height, maxHeight) + 'px';
+  selectionActive = true;
+}
+
+function endSelection(e) {
+  if (!isSelecting) return;
+  e.preventDefault();
+  isSelecting = false;
+}
+
+</script>
 </body>
 </html>
 """
