@@ -822,90 +822,97 @@ INDEX_HTML = """
       const currentY = touch.clientY - containerRect.top;
       
       // Calculate width and height
-
-    // Calculate width and height
-      const width = Math.abs(currentX - selectionStartX);
-      const height = Math.abs(currentY - selectionStartY);
+            // Ensure the image doesn't get positioned outside the container
+      leftPos = Math.max(0, Math.min(leftPos, 0));
+      topPos = Math.max(0, Math.min(topPos, 0));
       
-      // Calculate left and top (for when dragging in reverse direction)
-      const left = Math.min(currentX, selectionStartX);
-      const top = Math.min(currentY, selectionStartY);
-      
-      // Update selection box
-      selectionBox.style.left = left + 'px';
-      selectionBox.style.top = top + 'px';
-      selectionBox.style.width = width + 'px';
-      selectionBox.style.height = height + 'px';
-      
-      // Store selection values for later use
-      selectionLeft = left;
-      selectionTop = top;
-      selectionWidth = width;
-      selectionHeight = height;
+      magnifiedImage.style.left = `${leftPos}px`;
+      magnifiedImage.style.top = `${topPos}px`;
+    }
+    
+    function toggleSelectionMode() {
+      if (selectionModeCheckbox.checked) {
+        selectionActive = true;
+        selectionBox.style.display = 'block';
+        magnifiedImage.style.cursor = 'crosshair';
+      } else {
+        selectionActive = false;
+        selectionBox.style.display = 'none';
+        magnifiedImage.style.cursor = 'move';
+      }
+    }
+    
+    // Selection functionality
+    magnifiedContainer.addEventListener('mousedown', startSelection);
+    magnifiedContainer.addEventListener('mousemove', updateSelection);
+    document.addEventListener('mouseup', endSelection);
+    
+    function startSelection(e) {
+      if (!selectionActive) return;
+      selectionStartX = e.clientX;
+      selectionStartY = e.clientY;
+      selectionBox.style.left = `${selectionStartX}px`;
+      selectionBox.style.top = `${selectionStartY}px`;
+      selectionBox.style.display = 'block';
+      selectionWidth = 0;
+      selectionHeight = 0;
+    }
+    
+    function updateSelection(e) {
+      if (!selectionActive) return;
+      selectionWidth = e.clientX - selectionStartX;
+      selectionHeight = e.clientY - selectionStartY;
+      selectionBox.style.width = `${Math.abs(selectionWidth)}px`;
+      selectionBox.style.height = `${Math.abs(selectionHeight)}px`;
+      selectionBox.style.left = `${Math.min(selectionStartX, e.clientX)}px`;
+      selectionBox.style.top = `${Math.min(selectionStartY, e.clientY)}px`;
     }
     
     function endSelection() {
-      if (!isSelecting) return;
-      isSelecting = false;
-      
-      // Process the selected area for cropping
-      if (selectionWidth > 0 && selectionHeight > 0) {
-        processCrop();
-      }
-      
-      // Hide selection box
+      if (!selectionActive) return;
+      selectionActive = false;
       selectionBox.style.display = 'none';
+      // Process the selected area for cropping
+      processSelection();
     }
     
-    function processCrop() {
-      loadingIndicator.style.display = 'block';
+    function processSelection() {
+      // Get the coordinates of the selection box
+      const rect = selectionBox.getBoundingClientRect();
+      const x = rect.left - magnifiedContainer.getBoundingClientRect().left;
+      const y = rect.top - magnifiedContainer.getBoundingClientRect().top;
+      const width = rect.width;
+      const height = rect.height;
+
+      // Crop the image using OpenCV or any other library
+      // This is a placeholder for the actual cropping logic
+      // You would typically send the coordinates to the server for processing
+      console.log(`Cropping image at x: ${x}, y: ${y}, width: ${width}, height: ${height}`);
       
-      // Create a canvas to crop the image
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      // Set canvas dimensions based on selection
-      canvas.width = selectionWidth / currentScale;
-      canvas.height = selectionHeight / currentScale;
-      
-      // Draw the selected area onto the canvas
-      const img = new Image();
-      img.onload = function() {
-        ctx.drawImage(
-          img,
-          selectionLeft / currentScale,
-          selectionTop / currentScale,
-          canvas.width,
-          canvas.height,
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-        
-        // Get the cropped image data URL
-        const croppedImageUrl = canvas.toDataURL();
-        setupCroppedImage(croppedImageUrl);
-        loadingIndicator.style.display = 'none';
-      };
-      img.src = magnifiedImage.src;
+      // For demonstration, we will just show the cropped image
+      // In a real application, you would send this data to the server
+      setupCroppedImage(magnifiedImage.src); // Placeholder for cropped image
     }
     
     // Download functionality
-    downloadBtn.addEventListener('click', () => {
+    downloadBtn.addEventListener('click', downloadImage);
+    croppedDownloadBtn.addEventListener('click', downloadCroppedImage);
+    
+    function downloadImage() {
       const link = document.createElement('a');
       link.href = magnifiedImage.src;
       link.download = 'magnified-image.png';
       link.click();
-    });
+    }
     
-    croppedDownloadBtn.addEventListener('click', () => {
+    function downloadCroppedImage() {
       const link = document.createElement('a');
       link.href = croppedImage.src;
       link.download = 'cropped-image.png';
       link.click();
-    });
+    }
     
+    // New image upload functionality
     newImageBtn.addEventListener('click', () => {
       uploadSection.style.display = 'block';
       magnifierSection.style.display = 'none';
@@ -915,12 +922,28 @@ INDEX_HTML = """
     backToOriginalBtn.addEventListener('click', () => {
       tabs[0].click(); // Switch back to original tab
     });
+    
+    // Grayscale functionality
+    function applyGrayscale() {
+      if (grayscaleCheckbox.checked) {
+        magnifiedImage.style.filter = 'grayscale(100%)';
+      } else {
+        magnifiedImage.style.filter = 'none';
+      }
+    }
+    
+    function applyCroppedGrayscale() {
+      if (croppedGrayscaleCheckbox.checked) {
+        croppedImage.style.filter = 'grayscale(100%)';
+      } else {
+        croppedImage.style.filter = 'none';
+      }
+    }
   </script>
 </body>
 </html>
 """
 
-# ========== ROUTES ==========
 @app.route('/')
 def index():
     return render_template_string(INDEX_HTML, css=CSS_STYLE)
