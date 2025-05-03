@@ -257,10 +257,10 @@ img:hover {
   }
   img {
     max-width: 100%;
-    max-height: 300px;
+    max-height: 500px;
   }
   #magnified-image-container {
-    height: 300px;
+    height: 500px;
   }
 }
 """
