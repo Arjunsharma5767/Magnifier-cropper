@@ -256,6 +256,7 @@ img:hover {
     padding: 20px;
   }
   img {
+  align-items: centre;
     max-width: 100%;
     max-height: 500px;
   }
