@@ -915,10 +915,11 @@ selectionModeCheckbox.addEventListener('change', function() {
   }
 });
 
+// Ensure the selection box is displayed correctly
 function startSelection(e) {
   // Don't start selecting if we're already resizing
   if (isResizing) return;
-  
+
   // Get mouse position relative to container
   const containerRect = magnifiedContainer.getBoundingClientRect();
   const mouseX = e.clientX - containerRect.left;
@@ -936,8 +937,10 @@ function startSelection(e) {
   selectionBox.style.top = selectionStartY + 'px';
   selectionBox.style.width = '0';
   selectionBox.style.height = '0';
-  selectionBox.style.display = 'block';
+  selectionBox.style.display = 'block'; // Ensure the selection box is visible
 }
+
+
 
 function startSelectionTouch(e) {
   // Don't start selecting if we're already resizing or if there are multiple touches
@@ -999,13 +1002,14 @@ function updateSelectionTouch(e) {
   updateSelectionBox();
 }
 
+// Update the selection box dimensions and position
 function updateSelectionBox() {
+  if (!isSelecting) return;
   // Calculate top-left corner and dimensions
   const left = Math.min(selectionStartX, selectionCurrentX);
   const top = Math.min(selectionStartY, selectionCurrentY);
   const width = Math.abs(selectionCurrentX - selectionStartX);
   const height = Math.abs(selectionCurrentY - selectionStartY);
-  
   // Update selection box
   selectionBox.style.left = left + 'px';
   selectionBox.style.top = top + 'px';
