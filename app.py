@@ -655,7 +655,7 @@ h1 {
   <h1> Image Magnifier & Cropper</h1>
   <div id="upload-section">
     <div class="upload-area" id="drop-area" tabindex="0" role="button" aria-label="Upload image" onclick="fileInput.click()" onkeypress="if(event.key==='Enter'){fileInput.click();}">
-      <div class="upload-icon">📁</div>
+      <div class="upload-icon"></div>
       <p>Click to select or drag and drop an image</p>
     </div>
     <input type="file" id="file-input" name="image" accept="image/*" />
