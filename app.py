@@ -346,7 +346,7 @@ INDEX_HTML = """
 
   <div id="magnifier-section" style="display:none;">
     <div class="tabs" role="tablist">
-      <div class="tab active" data-tab="original" role="tab" tabindex="0" aria-selected="true" aria-controls="original-tab-content" id="original-tab">Original Image</div>
+      <div class="tab active" data-tab="original" role="tab" tabindex="0" aria-selected="true" aria-controls="original-tab-content" id="original-tab">Original Image</div> 
       <div class="tab" data-tab="cropped" id="cropped-tab" style="display:none;" role="tab" tabindex="-1" aria-selected="false" aria-controls="cropped-tab-content">Cropped Image</div>
     </div>
 
@@ -1056,12 +1056,15 @@ function updateSelectionTouch(e) {
 }
 
 function updateSelectionBox() {
+  // Get container dimensions
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+
   // Calculate top-left corner and dimensions
-  const left = Math.min(selectionStartX, selectionCurrentX);
-  const top = Math.min(selectionStartY, selectionCurrentY);
-  const width = Math.abs(selectionCurrentX - selectionStartX);
-  const height = Math.abs(selectionCurrentY - selectionStartY);
-  
+  const left = Math.max(0, Math.min(selectionStartX, selectionCurrentX));
+  const top = Math.max(0, Math.min(selectionStartY, selectionCurrentY));
+  const width = Math.min(containerRect.width - left, Math.abs(selectionCurrentX - selectionStartX));
+  const height = Math.min(containerRect.height - top, Math.abs(selectionCurrentY - selectionStartY));
+
   // Update selection box
   selectionBox.style.left = left + 'px';
   selectionBox.style.top = top + 'px';
