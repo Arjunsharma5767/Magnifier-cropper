@@ -915,11 +915,10 @@ selectionModeCheckbox.addEventListener('change', function() {
   }
 });
 
-// Ensure the selection box is displayed correctly
 function startSelection(e) {
   // Don't start selecting if we're already resizing
   if (isResizing) return;
-
+  
   // Get mouse position relative to container
   const containerRect = magnifiedContainer.getBoundingClientRect();
   const mouseX = e.clientX - containerRect.left;
@@ -937,10 +936,8 @@ function startSelection(e) {
   selectionBox.style.top = selectionStartY + 'px';
   selectionBox.style.width = '0';
   selectionBox.style.height = '0';
-  selectionBox.style.display = 'block'; // Ensure the selection box is visible
+  selectionBox.style.display = 'block';
 }
-
-
 
 function startSelectionTouch(e) {
   // Don't start selecting if we're already resizing or if there are multiple touches
@@ -968,23 +965,21 @@ function startSelectionTouch(e) {
   selectionBox.style.display = 'block';
 }
 
-// Update selection on mouse move
 function updateSelection(e) {
   if (!isSelecting || isResizing) return;
-
+  
   // Get current mouse position relative to container
   const containerRect = magnifiedContainer.getBoundingClientRect();
   const mouseX = e.clientX - containerRect.left;
   const mouseY = e.clientY - containerRect.top;
-
+  
   // Update current selection
   selectionCurrentX = mouseX;
   selectionCurrentY = mouseY;
-
+  
   // Calculate selection box dimensions
   updateSelectionBox();
 }
-
 
 function updateSelectionTouch(e) {
   if (!isSelecting || isResizing || e.touches.length !== 1) return;
@@ -1004,14 +999,13 @@ function updateSelectionTouch(e) {
   updateSelectionBox();
 }
 
-// Update the selection box dimensions and position
 function updateSelectionBox() {
-  if (!isSelecting) return;
   // Calculate top-left corner and dimensions
   const left = Math.min(selectionStartX, selectionCurrentX);
   const top = Math.min(selectionStartY, selectionCurrentY);
   const width = Math.abs(selectionCurrentX - selectionStartX);
   const height = Math.abs(selectionCurrentY - selectionStartY);
+  
   // Update selection box
   selectionBox.style.left = left + 'px';
   selectionBox.style.top = top + 'px';
@@ -1019,7 +1013,23 @@ function updateSelectionBox() {
   selectionBox.style.height = height + 'px';
 }
 
-function endSelection()
+function endSelection() {
+  if (!isSelecting) return;
+  isSelecting = false;
+  
+  // Check if selection has a valid size
+  const width = parseInt(selectionBox.style.width);
+  const height = parseInt(selectionBox.style.height);
+  
+  if (width < 10 || height < 10) {
+    // Selection too small, hide the box
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+  } else {
+    selectionActive = true;
+  }
+}
+
 intensitySlider.addEventListener('input', function() {
   currentScale = parseFloat(this.value);
   intensityValue.textContent = this.value;
