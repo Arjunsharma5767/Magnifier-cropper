@@ -1013,23 +1013,7 @@ function updateSelectionBox() {
   selectionBox.style.height = height + 'px';
 }
 
-function endSelection() {
-  if (!isSelecting) return;
-  isSelecting = false;
-  
-  // Check if selection has a valid size
-  const width = parseInt(selectionBox.style.width);
-  const height = parseInt(selectionBox.style.height);
-  
-  if (width < 10 || height < 10) {
-    // Selection too small, hide the box
-    selectionBox.style.display = 'none';
-    selectionActive = false;
-  } else {
-    selectionActive = true;
-  }
-}
-
+function endSelection()
 intensitySlider.addEventListener('input', function() {
   currentScale = parseFloat(this.value);
   intensityValue.textContent = this.value;
