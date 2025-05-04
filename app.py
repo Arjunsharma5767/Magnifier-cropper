@@ -2,6 +2,12 @@ import os
 import base64
 from flask import Flask, request, jsonify, render_template_string
 from flask import Flask, render_template
+app = Flask(__name__)
+@app.route("/")
+def index():
+    return render_template("index.html")  # Use render_template to render the HTML file
+if __name__ == "__main__":
+    app.run(debug=True)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
