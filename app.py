@@ -704,18 +704,14 @@ function getCroppedArea() {
   const selectionRelativeY = selBoxRect.top - containerRect.top;
   
   // Get image position and scale
-  const imgRect = magnifiedImage.getBoundingClientRect();
   const imgLeft = parseInt(magnifiedImage.style.left) || 0;
   const imgTop = parseInt(magnifiedImage.style.top) || 0;
-  
-  // Convert selection coordinates to original image coordinates
   const scale = currentScale;
   const x = (selectionRelativeX - imgLeft) / scale;
   const y = (selectionRelativeY - imgTop) / scale;
   const width = selBoxRect.width / scale;
   const height = selBoxRect.height / scale;
   
-  // Ensure the crop area is within image bounds
   const adjustedX = Math.max(0, Math.min(originalImageWidth, x));
   const adjustedY = Math.max(0, Math.min(originalImageHeight, y));
   const adjustedWidth = Math.min(originalImageWidth - adjustedX, width);
@@ -734,23 +730,23 @@ function getCroppedArea() {
 function cropImage(imageDataUrl, croppedArea) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous"; // To avoid CORS issues for local usage
+    img.crossOrigin = "anonymous";
     img.onload = function() {
       const canvas = document.createElement('canvas');
       canvas.width = croppedArea.width;
       canvas.height = croppedArea.height;
       const ctx = canvas.getContext('2d');
-      
-      // Draw the portion of the image to the canvas
       ctx.drawImage(
-        img, 
-        croppedArea.x, croppedArea.y, 
-        croppedArea.width, croppedArea.height, 
-        0, 0, 
-        croppedArea.width, croppedArea.height
+        img,
+        croppedArea.x,
+        croppedArea.y,
+        croppedArea.width,
+        croppedArea.height,
+        0,
+        0,
+        croppedArea.width,
+        croppedArea.height
       );
-      
-      // Convert to base64 image data URL
       resolve(canvas.toDataURL('image/png'));
     };
     img.onerror = () => reject(new Error('Failed to load image for cropping'));
@@ -759,18 +755,15 @@ function cropImage(imageDataUrl, croppedArea) {
 }
 
 processBtn.addEventListener('click', async () => {
-  // Fix: Improved validation for crop selection
   if (!selectionActive || !selectionBox.style.width || parseInt(selectionBox.style.width) <= 0) {
     alert('Please enable selection mode and select an area to crop.');
     return;
   }
-  
   const area = getCroppedArea();
   if (!area || area.width <= 0 || area.height <= 0) {
     alert('Invalid crop selection. Please select a valid area.');
     return;
   }
-  
   loadingIndicator.style.display = 'block';
   try {
     const croppedUrl = await cropImage(imageData, area);
@@ -806,7 +799,7 @@ newImageBtn.addEventListener('click', () => {
 });
 
 backToOriginalBtn.addEventListener('click', () => {
-  tabs[0].click(); // Switch back to original tab
+  tabs[0].click();
 });
 
 intensitySlider.addEventListener('input', () => {
@@ -868,8 +861,14 @@ magnifiedContainer.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseup', () => {
   selectionActive = false;
 });
+</script>
+</body>
+</html>
+"""
 
-// Initialize Flask app
+@app.route('/')
+def index():
+    return render_template_string(INDEX_HTML, css=CSS_STYLE)
+
 if __name__ == '__main__':
     app.run(debug=True)
-
