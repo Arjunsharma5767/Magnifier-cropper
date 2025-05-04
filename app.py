@@ -340,6 +340,8 @@ INDEX_HTML = """
       <p>Click to select or drag and drop an image</p>
     </div>
     <input type="file" id="file-input" name="image" accept="image/*" />
+
+    <button id="process-btn">Process Selection</button>
   </div>
 
   <div id="magnifier-section" style="display:none;">
