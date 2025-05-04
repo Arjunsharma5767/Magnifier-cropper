@@ -201,7 +201,7 @@ img:hover {
   border: 2px solid #ea4335;
   background-color: rgba(234, 67, 53, 0.2);
   pointer-events: none;
-  display: none;
+  display: none; /* Ensure this is toggled dynamically */
   z-index: 10;
 }
 /* Resize handles for the selection box */
