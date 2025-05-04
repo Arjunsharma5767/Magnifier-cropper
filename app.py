@@ -122,7 +122,7 @@ input[type="file"] {
 }
 .image-wrapper {
   display: flex;
-  justify-content: space-around;
+  justify-content: center; /* Center the image horizontally */
   width: 100%;
   margin-bottom: 20px;
   flex-wrap: wrap;
@@ -145,6 +145,9 @@ img {
   left: 0;
   top: 0;
   user-select: none;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }
 img:hover {
   transform: scale(1.03);
@@ -188,6 +191,9 @@ img:hover {
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
   margin-top: 20px;
   touch-action: none;
+  display: flex;
+  justify-content: center; /* Center contents horizontally */
+  align-items: center;    /* Center contents vertically */
 }
 #magnified-image {
   position: absolute;
@@ -521,7 +527,6 @@ function setupDragging() {
   document.addEventListener('touchmove', dragImageTouch, {passive:false});
   document.addEventListener('touchend', stopDragging);
 
-  // Fix: Setup dragging for cropped image container correctly
   const croppedContainer = document.querySelector('#cropped-tab-content #magnified-image-container');
   croppedContainer.addEventListener('mousedown', startCroppedDragging);
   document.addEventListener('mousemove', dragCroppedImage);
@@ -636,7 +641,6 @@ function dragCroppedImage(e) {
   let newLeft = croppedStartLeft + dx;
   let newTop = croppedStartTop + dy;
 
-  // Fix: Get the correct container for cropped image
   const croppedContainer = document.querySelector('#cropped-tab-content #magnified-image-container');
   const containerWidth = croppedContainer.clientWidth;
   const containerHeight = croppedContainer.clientHeight;
@@ -677,33 +681,28 @@ function setupCroppedImage(imageUrl) {
   croppedImage.style.top = '0px';
   croppedImage.style.transform = 'scale(1)';
   
-  // Reset any previous filter before setting the new image
   croppedImage.style.filter = croppedGrayscaleCheckbox.checked ? 'grayscale(100%)' : 'none';
   croppedImage.src = imageUrl;
 
   croppedImage.onload = () => {
     croppedImageWidth = croppedImage.naturalWidth;
     croppedImageHeight = croppedImage.naturalHeight;
-    // Fix: Apply correct width and positioning
     croppedImage.style.width = '100%';
     croppedImage.style.height = 'auto';
   };
 
-  tabs[1].click(); // Switch tab to cropped image
+  tabs[1].click();
 }
 
 function getCroppedArea() {
-  if (!selectionActive) return null;
-  
-  // Fix: Get accurate selection box coordinates
+  if (!selectionBox.style.width || parseInt(selectionBox.style.width) === 0) return null;
+
   const selBoxRect = selectionBox.getBoundingClientRect();
   const containerRect = magnifiedContainer.getBoundingClientRect();
-  
-  // Calculate selection position relative to the container
+
   const selectionRelativeX = selBoxRect.left - containerRect.left;
   const selectionRelativeY = selBoxRect.top - containerRect.top;
-  
-  // Get image position and scale
+
   const imgLeft = parseInt(magnifiedImage.style.left) || 0;
   const imgTop = parseInt(magnifiedImage.style.top) || 0;
   const scale = currentScale;
@@ -711,14 +710,14 @@ function getCroppedArea() {
   const y = (selectionRelativeY - imgTop) / scale;
   const width = selBoxRect.width / scale;
   const height = selBoxRect.height / scale;
-  
+
   const adjustedX = Math.max(0, Math.min(originalImageWidth, x));
   const adjustedY = Math.max(0, Math.min(originalImageHeight, y));
   const adjustedWidth = Math.min(originalImageWidth - adjustedX, width);
   const adjustedHeight = Math.min(originalImageHeight - adjustedY, height);
-  
+
   if (adjustedWidth <= 0 || adjustedHeight <= 0) return null;
-  
+
   return {
     x: adjustedX,
     y: adjustedY,
@@ -755,7 +754,7 @@ function cropImage(imageDataUrl, croppedArea) {
 }
 
 processBtn.addEventListener('click', async () => {
-  if (!selectionActive || !selectionBox.style.width || parseInt(selectionBox.style.width) <= 0) {
+  if (!selectionBox.style.width || parseInt(selectionBox.style.width) === 0) {
     alert('Please enable selection mode and select an area to crop.');
     return;
   }
@@ -829,37 +828,49 @@ function applyGrayscale() {
 
 // Selection mode functionality
 selectionModeCheckbox.addEventListener('change', () => {
-  selectionActive = selectionModeCheckbox.checked;
-  selectionBox.style.display = selectionActive ? 'block' : 'none';
+  if (selectionModeCheckbox.checked) {
+    selectionBox.style.display = 'block';
+    selectionActive = true;
+  } else {
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+    selectionBox.style.width = '0px';
+    selectionBox.style.height = '0px';
+  }
 });
 
 magnifiedContainer.addEventListener('mousedown', (e) => {
-  if (selectionActive) {
-    selectionStartX = e.clientX;
-    selectionStartY = e.clientY;
-    selectionBox.style.left = `${selectionStartX}px`;
-    selectionBox.style.top = `${selectionStartY}px`;
-    selectionBox.style.width = '0px';
-    selectionBox.style.height = '0px';
-    selectionActive = true;
-  }
+  if (!selectionModeCheckbox.checked) return;
+  e.preventDefault();
+  selectionActive = true;
+  selectionStartX = e.pageX - magnifiedContainer.getBoundingClientRect().left;
+  selectionStartY = e.pageY - magnifiedContainer.getBoundingClientRect().top;
+  selectionBox.style.left = `${selectionStartX}px`;
+  selectionBox.style.top = `${selectionStartY}px`;
+  selectionBox.style.width = '0px';
+  selectionBox.style.height = '0px';
+  selectionBox.style.display = 'block';
 });
 
 magnifiedContainer.addEventListener('mousemove', (e) => {
-  if (selectionActive) {
-    const currentX = e.clientX;
-    const currentY = e.clientY;
-    const width = currentX - selectionStartX;
-    const height = currentY - selectionStartY;
-    selectionBox.style.width = `${Math.abs(width)}px`;
-    selectionBox.style.height = `${Math.abs(height)}px`;
-    selectionBox.style.left = `${width < 0 ? currentX : selectionStartX}px`;
-    selectionBox.style.top = `${height < 0 ? currentY : selectionStartY}px`;
-  }
+  if (!selectionActive) return;
+  e.preventDefault();
+  const currentX = e.pageX - magnifiedContainer.getBoundingClientRect().left;
+  const currentY = e.pageY - magnifiedContainer.getBoundingClientRect().top;
+  const x = Math.min(currentX, selectionStartX);
+  const y = Math.min(currentY, selectionStartY);
+  const width = Math.abs(currentX - selectionStartX);
+  const height = Math.abs(currentY - selectionStartY);
+  selectionBox.style.left = `${x}px`;
+  selectionBox.style.top = `${y}px`;
+  selectionBox.style.width = `${width}px`;
+  selectionBox.style.height = `${height}px`;
 });
 
 document.addEventListener('mouseup', () => {
-  selectionActive = false;
+  if (selectionActive) {
+    selectionActive = false;
+  }
 });
 </script>
 </body>
