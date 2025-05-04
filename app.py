@@ -320,15 +320,9 @@ img:hover {
     height: 500px;
   }
 }
-"""
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Image Magnifier & Cropper</title>
-<style>
+
+
 /* Root styles */
 :root {
   --primary-color: #4285f4;
@@ -645,7 +639,16 @@ h1 {
     height: 350px;
   }
 }
-</style>
+
+"""
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Image Magnifier & Cropper</title>
+
 </head>
 <body>
 <div class="container">
