@@ -968,21 +968,23 @@ function startSelectionTouch(e) {
   selectionBox.style.display = 'block';
 }
 
+// Update selection on mouse move
 function updateSelection(e) {
   if (!isSelecting || isResizing) return;
-  
+
   // Get current mouse position relative to container
   const containerRect = magnifiedContainer.getBoundingClientRect();
   const mouseX = e.clientX - containerRect.left;
   const mouseY = e.clientY - containerRect.top;
-  
+
   // Update current selection
   selectionCurrentX = mouseX;
   selectionCurrentY = mouseY;
-  
+
   // Calculate selection box dimensions
   updateSelectionBox();
 }
+
 
 function updateSelectionTouch(e) {
   if (!isSelecting || isResizing || e.touches.length !== 1) return;
