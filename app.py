@@ -320,342 +320,23 @@ img:hover {
     height: 500px;
   }
 }
-
-
-
-/* Root styles */
-:root {
-  --primary-color: #4285f4;
-  --primary-hover: #2a75f3;
-  --secondary-color: #34a853;
-  --secondary-hover: #2d9249;
-  --text-color: #333;
-  --light-bg: #f9f9f9;
-  --border-color: #ddd;
-  --shadow-color: rgba(0, 0, 0, 0.1);
-}
-
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0;
-  padding: 0;
-  color: var(--text-color);
-  background-color: var(--light-bg);
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-h1 {
-  text-align: center;
-  color: var(--primary-color);
-  margin-bottom: 30px;
-}
-
-/* Upload section */
-#upload-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 30px;
-}
-
-.upload-area {
-  border: 3px dashed #ccc;
-  border-radius: 8px;
-  padding: 40px;
-  text-align: center;
-  cursor: pointer;
-  width: 100%;
-  max-width: 600px;
-  transition: all 0.3s ease;
-}
-
-.upload-area:hover, .upload-area:focus {
-  border-color: var(--primary-color);
-  background-color: rgba(66, 133, 244, 0.05);
-}
-
-.upload-icon {
-  font-size: 48px;
-  margin-bottom: 15px;
-}
-
-#file-input {
-  display: none;
-}
-
-/* Tabs */
-.tabs {
-  display: flex;
-  gap: 5px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.tab {
-  padding: 12px 20px;
-  cursor: pointer;
-  border-radius: 8px 8px 0 0;
-  font-weight: 500;
-  transition: background-color 0.2s;
-  border: 1px solid transparent;
-  border-bottom: none;
-}
-
-.tab:hover {
-  background-color: rgba(66, 133, 244, 0.1);
-}
-
-.tab.active {
-  background-color: white;
-  border-color: var(--border-color);
-  border-bottom: 2px solid white;
-  margin-bottom: -1px;
-  color: var(--primary-color);
-}
-
-.tab-content {
-  display: none;
-  background: white;
-  border-radius: 0 8px 8px 8px;
-  padding: 20px;
-  box-shadow: 0 4px 6px var(--shadow-color);
-}
-
-.tab-content.active {
-  display: block;
-}
-
-/* Controls */
-.control-panel {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-}
-
-.slider-container {
-  margin-bottom: 15px;
-}
-
-.slider {
-  width: 100%;
-  height: 8px;
-  border-radius: 4px;
-  background: #d3d3d3;
-  outline: none;
-  transition: opacity 0.2s;
-  -webkit-appearance: none;
-}
-
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.slider::-webkit-slider-thumb:hover {
-  background: var(--primary-hover);
-  transform: scale(1.1);
-}
-
-.slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-}
-
-.slider::-moz-range-thumb:hover {
-  background: var(--primary-hover);
-  transform: scale(1.1);
-}
-
-.checkbox-container {
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-}
-
-.checkbox-container input[type="checkbox"] {
-  margin-right: 10px;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.instructions {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: #fff;
-  border-left: 4px solid var(--primary-color);
-  border-radius: 0 4px 4px 0;
-}
-
-/* Image container */
-#magnified-image-container {
-  position: relative;
-  width: 100%;
-  height: 500px;
-  margin: 20px 0;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background-color: #f0f0f0;
-  background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%), 
-                    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), 
-                    linear-gradient(45deg, transparent 75%, #e0e0e0 75%), 
-                    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-}
-
-#magnified-image, #cropped-image {
-  position: absolute;
-  cursor: grab;
-  user-select: none;
-  transform-origin: top left;
-}
-
-#magnified-image:active, #cropped-image:active {
-  cursor: grabbing;
-}
-
-#selection-box {
-  position: absolute;
-  border: 2px dashed rgba(65, 105, 225, 0.8);
-  background-color: rgba(65, 105, 225, 0.2);
-  pointer-events: none;
-  display: none;
-}
-
-.resize-handle {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  background-color: white;
-  border: 1px solid rgba(65, 105, 225, 0.8);
-  border-radius: 50%;
-  pointer-events: all;
-  cursor: pointer;
-}
-
-.handle-nw { top: -5px; left: -5px; cursor: nw-resize; }
-.handle-n { top: -5px; left: calc(50% - 5px); cursor: n-resize; }
-.handle-ne { top: -5px; right: -5px; cursor: ne-resize; }
-.handle-e { top: calc(50% - 5px); right: -5px; cursor: e-resize; }
-.handle-se { bottom: -5px; right: -5px; cursor: se-resize; }
-.handle-s { bottom: -5px; left: calc(50% - 5px); cursor: s-resize; }
-.handle-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-.handle-w { top: calc(50% - 5px); left: -5px; cursor: w-resize; }
-
-/* Buttons */
-.action-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 20px;
-}
-
-.button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  background-color: var(--primary-color);
-  color: white;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-.button:hover {
-  background-color: var(--primary-hover);
-}
-
-.button.process {
-  background-color: var(--secondary-color);
-}
-
-.button.process:hover {
-  background-color: var(--secondary-hover);
-}
-
-.button.download {
-  background-color: #ea4335;
-}
-
-.button.download:hover {
-  background-color: #d33426;
-}
-
-#zoom-info, #cropped-zoom-info {
-  margin-bottom: 15px;
-  font-size: 14px;
-  color: #666;
-}
-
-/* Loading indicator */
-.loading {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 15px 30px;
-  border-radius: 5px;
-  font-weight: 500;
-  display: none;
-  z-index: 10;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .control-panel {
-    flex-direction: column;
-  }
-  
-  .action-buttons {
-    flex-direction: column;
-  }
-  
-  .button {
-    width: 100%;
-  }
-  
-  #magnified-image-container {
-    height: 350px;
-  }
-}
-
 """
 
+INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Image Magnifier & Cropper</title>
-
+<style>{{ css }}</style>
 </head>
 <body>
 <div class="container">
-  <h1> Image Magnifier & Cropper</h1>
+  <h1>🔍 Image Magnifier & Cropper</h1>
   <div id="upload-section">
     <div class="upload-area" id="drop-area" tabindex="0" role="button" aria-label="Upload image" onclick="fileInput.click()" onkeypress="if(event.key==='Enter'){fileInput.click();}">
-      <div class="upload-icon"></div>
+      <div class="upload-icon">📁</div>
       <p>Click to select or drag and drop an image</p>
     </div>
     <input type="file" id="file-input" name="image" accept="image/*" />
@@ -1117,7 +798,7 @@ function dragImage(e) {
   const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
   const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
 
- const dx = clientX - startX;
+  const dx = clientX - startX;
   const dy = clientY - startY;
 
   const newLeft = startLeft + dx;
@@ -1128,20 +809,18 @@ function dragImage(e) {
 }
 
 function dragImageTouch(e) {
-  if (!isDragging) return;
-  if (e.touches.length === 1) {
-    e.preventDefault();
+  if (!isDragging || e.touches.length !== 1) return;
+  e.preventDefault();
 
-    const touch = e.touches[0];
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
+  const touch = e.touches[0];
+  const dx = touch.clientX - startX;
+  const dy = touch.clientY - startY;
 
-    const newLeft = startLeft + dx;
-    const newTop = startTop + dy;
+  const newLeft = startLeft + dx;
+  const newTop = startTop + dy;
 
-    magnifiedImage.style.left = newLeft + 'px';
-    magnifiedImage.style.top = newTop + 'px';
-  }
+  magnifiedImage.style.left = newLeft + 'px';
+  magnifiedImage.style.top = newTop + 'px';
 }
 
 function stopDragging() {
@@ -1177,8 +856,11 @@ function dragCroppedImage(e) {
   if (!isDragging) return;
   e.preventDefault();
 
-  const dx = e.clientX - startX;
-  const dy = e.clientY - startY;
+  const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+  const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+
+  const dx = clientX - startX;
+  const dy = clientY - startY;
 
   const newLeft = startLeft + dx;
   const newTop = startTop + dy;
@@ -1188,79 +870,68 @@ function dragCroppedImage(e) {
 }
 
 function dragCroppedImageTouch(e) {
-  if (!isDragging) return;
-  if (e.touches.length === 1) {
-    e.preventDefault();
+  if (!isDragging || e.touches.length !== 1) return;
+  e.preventDefault();
 
-    const touch = e.touches[0];
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
+  const touch = e.touches[0];
+  const dx = touch.clientX - startX;
+  const dy = touch.clientY - startY;
 
-    const newLeft = startLeft + dx;
-    const newTop = startTop + dy;
+  const newLeft = startLeft + dx;
+  const newTop = startTop + dy;
 
-    croppedImage.style.left = newLeft + 'px';
-    croppedImage.style.top = newTop + 'px';
-  }
+  croppedImage.style.left = newLeft + 'px';
+  croppedImage.style.top = newTop + 'px';
 }
 
 function stopCroppedDragging() {
   isDragging = false;
 }
 
-intensitySlider.addEventListener('input', () => {
-  const value = parseFloat(intensitySlider.value);
-  intensityValue.textContent = value.toFixed(1);
-  currentScale = value;
-  zoomInfo.textContent = `Current zoom: ${value.toFixed(1)}x`;
-  magnifiedImage.style.transform = `scale(${value})`;
-});
-
-croppedIntensitySlider.addEventListener('input', () => {
-  const value = parseFloat(croppedIntensitySlider.value);
-  croppedIntensityValue.textContent = value.toFixed(1);
-  croppedCurrentScale = value;
-  croppedZoomInfo.textContent = `Current zoom: ${value.toFixed(1)}x`;
-  croppedImage.style.transform = `scale(${value})`;
-});
-
-grayscaleCheckbox.addEventListener('change', applyGrayscale);
-croppedGrayscaleCheckbox.addEventListener('change', applyCroppedGrayscale);
-
-selectionModeCheckbox.addEventListener('change', () => {
-  if (selectionModeCheckbox.checked) {
+// Initialize listener for selection mode checkbox
+selectionModeCheckbox.addEventListener('change', function() {
+  if (this.checked) {
+    // Enable selection mode
+    magnifiedContainer.style.cursor = 'crosshair';
     magnifiedContainer.addEventListener('mousedown', startSelection);
-    document.addEventListener('mousemove', updateSelection);
-    document.addEventListener('mouseup', endSelection);
-    
-    magnifiedContainer.addEventListener('touchstart', startSelectionTouch);
-    document.addEventListener('touchmove', updateSelectionTouch);
-    document.addEventListener('touchend', endSelection);
+    magnifiedContainer.addEventListener('touchstart', startSelectionTouch, {passive: false});
+    magnifiedContainer.addEventListener('mousemove', updateSelection);
+    magnifiedContainer.addEventListener('touchmove', updateSelectionTouch, {passive: false});
+    magnifiedContainer.addEventListener('mouseup', endSelection);
+    magnifiedContainer.addEventListener('touchend', endSelection);
   } else {
+    // Disable selection mode
+    magnifiedContainer.style.cursor = 'grab';
     magnifiedContainer.removeEventListener('mousedown', startSelection);
-    document.removeEventListener('mousemove', updateSelection);
-    document.removeEventListener('mouseup', endSelection);
-    
     magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
-    document.removeEventListener('touchmove', updateSelectionTouch);
-    document.removeEventListener('touchend', endSelection);
+    magnifiedContainer.removeEventListener('mousemove', updateSelection);
+    magnifiedContainer.removeEventListener('touchmove', updateSelectionTouch);
+    magnifiedContainer.removeEventListener('mouseup', endSelection);
+    magnifiedContainer.removeEventListener('touchend', endSelection);
     
+    // Hide selection box
     selectionBox.style.display = 'none';
     selectionActive = false;
   }
 });
 
 function startSelection(e) {
-  if (!selectionModeCheckbox.checked || isResizing) return;
-  e.preventDefault();
+  // Don't start selecting if we're already resizing
+  if (isResizing) return;
   
-  isSelecting = true;
-  selectionActive = true;
-  
+  // Get mouse position relative to container
   const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionStartX = e.clientX - containerRect.left;
-  selectionStartY = e.clientY - containerRect.top;
-  
+  const mouseX = e.clientX - containerRect.left;
+  const mouseY = e.clientY - containerRect.top;
+
+  // Start selection
+  isSelecting = true;
+  selectionStartX = mouseX;
+  selectionStartY = mouseY;
+  selectionCurrentX = mouseX;
+  selectionCurrentY = mouseY;
+
+  // Set up selection box
   selectionBox.style.left = selectionStartX + 'px';
   selectionBox.style.top = selectionStartY + 'px';
   selectionBox.style.width = '0';
@@ -1269,17 +940,24 @@ function startSelection(e) {
 }
 
 function startSelectionTouch(e) {
-  if (!selectionModeCheckbox.checked || isResizing || e.touches.length !== 1) return;
+  // Don't start selecting if we're already resizing or if there are multiple touches
+  if (isResizing || e.touches.length !== 1) return;
   e.preventDefault();
   
-  isSelecting = true;
-  selectionActive = true;
-  
+  // Get touch position relative to container
   const touch = e.touches[0];
   const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionStartX = touch.clientX - containerRect.left;
-  selectionStartY = touch.clientY - containerRect.top;
-  
+  const touchX = touch.clientX - containerRect.left;
+  const touchY = touch.clientY - containerRect.top;
+
+  // Start selection
+  isSelecting = true;
+  selectionStartX = touchX;
+  selectionStartY = touchY;
+  selectionCurrentX = touchX;
+  selectionCurrentY = touchY;
+
+  // Set up selection box
   selectionBox.style.left = selectionStartX + 'px';
   selectionBox.style.top = selectionStartY + 'px';
   selectionBox.style.width = '0';
@@ -1288,63 +966,87 @@ function startSelectionTouch(e) {
 }
 
 function updateSelection(e) {
-  if (!isSelecting) return;
-  e.preventDefault();
+  if (!isSelecting || isResizing) return;
   
+  // Get current mouse position relative to container
   const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionCurrentX = e.clientX - containerRect.left;
-  selectionCurrentY = e.clientY - containerRect.top;
-
-  // Calculate the selection box dimensions
-  const left = Math.min(selectionStartX, selectionCurrentX);
-  const top = Math.min(selectionStartY, selectionCurrentY);
-  const width = Math.abs(selectionCurrentX - selectionStartX);
-  const height = Math.abs(selectionCurrentY - selectionStartY);
+  const mouseX = e.clientX - containerRect.left;
+  const mouseY = e.clientY - containerRect.top;
   
-  // Apply constraints to keep selection within container
-  const constrainedLeft = Math.max(0, Math.min(left, containerRect.width));
-  const constrainedTop = Math.max(0, Math.min(top, containerRect.height));
-  const constrainedWidth = Math.min(width, containerRect.width - constrainedLeft);
-  const constrainedHeight = Math.min(height, containerRect.height - constrainedTop);
+  // Update current selection
+  selectionCurrentX = mouseX;
+  selectionCurrentY = mouseY;
   
-  // Set selection box properties
-  selectionBox.style.left = constrainedLeft + 'px';
-  selectionBox.style.top = constrainedTop + 'px';
-  selectionBox.style.width = constrainedWidth + 'px';
-  selectionBox.style.height = constrainedHeight + 'px';
+  // Calculate selection box dimensions
+  updateSelectionBox();
 }
 
 function updateSelectionTouch(e) {
-  if (!isSelecting || e.touches.length !== 1) return;
+  if (!isSelecting || isResizing || e.touches.length !== 1) return;
   e.preventDefault();
   
+  // Get current touch position relative to container
   const touch = e.touches[0];
   const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionCurrentX = touch.clientX - containerRect.left;
-  selectionCurrentY = touch.clientY - containerRect.top;
+  const touchX = touch.clientX - containerRect.left;
+  const touchY = touch.clientY - containerRect.top;
+  
+  // Update current selection
+  selectionCurrentX = touchX;
+  selectionCurrentY = touchY;
+  
+  // Calculate selection box dimensions
+  updateSelectionBox();
+}
 
-  // Calculate the selection box dimensions
+function updateSelectionBox() {
+  // Calculate top-left corner and dimensions
   const left = Math.min(selectionStartX, selectionCurrentX);
   const top = Math.min(selectionStartY, selectionCurrentY);
   const width = Math.abs(selectionCurrentX - selectionStartX);
   const height = Math.abs(selectionCurrentY - selectionStartY);
   
-  // Apply constraints to keep selection within container
-  const constrainedLeft = Math.max(0, Math.min(left, containerRect.width));
-  const constrainedTop = Math.max(0, Math.min(top, containerRect.height));
-  const constrainedWidth = Math.min(width, containerRect.width - constrainedLeft);
-  const constrainedHeight = Math.min(height, containerRect.height - constrainedTop);
-  
-  // Set selection box properties
-  selectionBox.style.left = constrainedLeft + 'px';
-  selectionBox.style.top = constrainedTop + 'px';
-  selectionBox.style.width = constrainedWidth + 'px';
-  selectionBox.style.height = constrainedHeight + 'px';
+  // Update selection box
+  selectionBox.style.left = left + 'px';
+  selectionBox.style.top = top + 'px';
+  selectionBox.style.width = width + 'px';
+  selectionBox.style.height = height + 'px';
 }
 
 function endSelection() {
+  if (!isSelecting) return;
   isSelecting = false;
+  
+  // Check if selection has a valid size
+  const width = parseInt(selectionBox.style.width);
+  const height = parseInt(selectionBox.style.height);
+  
+  if (width < 10 || height < 10) {
+    // Selection too small, hide the box
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+  } else {
+    selectionActive = true;
+  }
 }
+
+intensitySlider.addEventListener('input', function() {
+  currentScale = parseFloat(this.value);
+  intensityValue.textContent = this.value;
+  zoomInfo.textContent = `Current zoom: ${this.value}x`;
+  
+  // Update original image scale
+  magnifiedImage.style.transform = `scale(${currentScale})`;
+});
+
+croppedIntensitySlider.addEventListener('input', function() {
+  croppedCurrentScale = parseFloat(this.value);
+  croppedIntensityValue.textContent = this.value;
+  croppedZoomInfo.textContent = `Current zoom: ${this.value}x`;
+  
+  // Update cropped image scale
+  croppedImage.style.transform = `scale(${croppedCurrentScale})`;
+});
 
 function applyGrayscale() {
   if (grayscaleCheckbox.checked) {
@@ -1362,117 +1064,99 @@ function applyCroppedGrayscale() {
   }
 }
 
-processBtn.addEventListener('click', () => {
+grayscaleCheckbox.addEventListener('change', applyGrayscale);
+croppedGrayscaleCheckbox.addEventListener('change', applyCroppedGrayscale);
+
+processBtn.addEventListener('click', function() {
   if (!selectionActive) {
-    alert('Please select an area to crop first.');
+    alert('Please make a selection first.');
     return;
   }
   
+  // Show loading indicator
   loadingIndicator.style.display = 'block';
-  setTimeout(() => processImage(), 50);
+  
+  // Get selection dimensions
+  const selectionLeft = parseInt(selectionBox.style.left);
+  const selectionTop = parseInt(selectionBox.style.top);
+  const selectionWidth = parseInt(selectionBox.style.width);
+  const selectionHeight = parseInt(selectionBox.style.height);
+  
+  // Get the actual coordinates in the original image
+  const imgRect = magnifiedImage.getBoundingClientRect();
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  
+  // Calculate position and dimensions relative to the actual image
+  const imageLeft = parseInt(magnifiedImage.style.left);
+  const imageTop = parseInt(magnifiedImage.style.top);
+  
+  // Calculate the actual coordinates in the original image (accounting for scaling)
+  const actualX = (selectionLeft - imageLeft) / currentScale;
+  const actualY = (selectionTop - imageTop) / currentScale;
+  const actualWidth = selectionWidth / currentScale;
+  const actualHeight = selectionHeight / currentScale;
+  
+  // Create form data for the server request
+  const formData = new FormData();
+  formData.append('image_data', imageData);
+  formData.append('x', Math.round(actualX));
+  formData.append('y', Math.round(actualY));
+  formData.append('width', Math.round(actualWidth));
+  formData.append('height', Math.round(actualHeight));
+  
+  // Send the request to crop the image
+  fetch('/crop', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Store the cropped image data and setup the cropped tab
+      croppedImageData = data.cropped_image;
+      setupCroppedImage(data.cropped_image);
+      
+      // Switch to the cropped tab
+      croppedTab.style.display = 'block';
+      croppedTab.click();
+    } else {
+      alert('Error cropping image: ' + data.error);
+    }
+    loadingIndicator.style.display = 'none';
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Error processing image. Please try again.');
+    loadingIndicator.style.display = 'none';
+  });
 });
 
-function processImage() {
-  // Get the selection coordinates
-  const boxLeft = parseInt(selectionBox.style.left);
-  const boxTop = parseInt(selectionBox.style.top);
-  const boxWidth = parseInt(selectionBox.style.width);
-  const boxHeight = parseInt(selectionBox.style.height);
-  
-  if (boxWidth < 10 || boxHeight < 10) {
-    alert('Selection too small. Please select a larger area.');
-    loadingIndicator.style.display = 'none';
-    return;
-  }
-  
-  // Create a temporary canvas to crop the image
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  // Create a temporary image to get the scaled image data
-  const tempImg = new Image();
-  tempImg.onload = function() {
-    // Calculate the scale factor between original image and displayed image
-    const displayedImgWidth = magnifiedImage.getBoundingClientRect().width / currentScale;
-    const displayedImgHeight = magnifiedImage.getBoundingClientRect().height / currentScale;
-    
-    const scaleFactorX = originalImageWidth / displayedImgWidth;
-    const scaleFactorY = originalImageHeight / displayedImgHeight;
-    
-    // Calculate the offset considering current position and scale
-    const offsetX = parseInt(magnifiedImage.style.left || '0') / currentScale;
-    const offsetY = parseInt(magnifiedImage.style.top || '0') / currentScale;
-    
-    // Calculate the source coordinates in the original image
-    const sourceX = (boxLeft / currentScale - offsetX) * scaleFactorX;
-    const sourceY = (boxTop / currentScale - offsetY) * scaleFactorY;
-    const sourceWidth = (boxWidth / currentScale) * scaleFactorX;
-    const sourceHeight = (boxHeight / currentScale) * scaleFactorY;
-    
-    // Set canvas dimensions to the cropped size
-    canvas.width = sourceWidth;
-    canvas.height = sourceHeight;
-    
-    // Draw the cropped portion to the canvas
-    ctx.drawImage(
-      tempImg,
-      sourceX, sourceY, sourceWidth, sourceHeight,
-      0, 0, sourceWidth, sourceHeight
-    );
-    
-    // Apply grayscale if needed
-    if (grayscaleCheckbox.checked) {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        data[i] = avg;     // red
-        data[i + 1] = avg; // green
-        data[i + 2] = avg; // blue
-      }
-      ctx.putImageData(imageData, 0, 0);
-    }
-    
-    // Get the cropped image data
-    croppedImageData = canvas.toDataURL('image/jpeg', 0.9);
-    
-    // Update the cropped image tab
-    setupCroppedImage(croppedImageData);
-    
-    // Hide loading indicator
-    loadingIndicator.style.display = 'none';
-  };
-  tempImg.src = imageData;
-}
-
-function setupCroppedImage(croppedDataUrl) {
-  croppedTab.style.display = '';
-  croppedTab.click();
-  
+function setupCroppedImage(imageUrl) {
+  // Reset controls
   croppedCurrentScale = 1.0;
   croppedIntensitySlider.value = 1;
   croppedIntensityValue.textContent = '1';
   croppedZoomInfo.textContent = 'Current zoom: 1.0x';
+  croppedGrayscaleCheckbox.checked = false;
   
-  croppedGrayscaleCheckbox.checked = grayscaleCheckbox.checked;
-  
+  // Load the image dimensions
   const img = new Image();
   img.onload = function() {
     croppedImageWidth = this.width;
     croppedImageHeight = this.height;
     
-    // Center the image initially
-    croppedImage.src = croppedDataUrl;
+    // Set up the cropped image
+    croppedImage.src = imageUrl;
     croppedImage.style.width = 'auto';
     croppedImage.style.height = 'auto';
     croppedImage.style.maxWidth = '100%';
     croppedImage.style.maxHeight = '100%';
+    croppedImage.style.filter = 'none';
     
     // Center the image after it loads
     croppedImage.onload = function() {
-      const container = document.querySelector('#cropped-tab-content #magnified-image-container');
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
+      const containerWidth = document.querySelector('#cropped-tab-content #magnified-image-container').clientWidth;
+      const containerHeight = document.querySelector('#cropped-tab-content #magnified-image-container').clientHeight;
       const imgWidth = croppedImage.clientWidth;
       const imgHeight = croppedImage.clientHeight;
       
@@ -1484,28 +1168,28 @@ function setupCroppedImage(croppedDataUrl) {
       croppedImage.style.top = topPos + 'px';
       croppedImage.style.transform = 'scale(1)';
     };
-    
-    applyCroppedGrayscale();
   };
-  img.src = croppedDataUrl;
+  img.src = imageUrl;
 }
 
-downloadBtn.addEventListener('click', () => {
-  const a = document.createElement('a');
+downloadBtn.addEventListener('click', function() {
+  // Create a temporary link to download the image
+  const link = document.createElement('a');
   
-  // Create a temporary canvas to apply magnification
+  // Create a canvas to apply current zoom and filters
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   
-  const tempImg = new Image();
-  tempImg.onload = function() {
-    // Apply the current magnification
-    canvas.width = tempImg.width * currentScale;
-    canvas.height = tempImg.height * currentScale;
+  // Create a new image for processing
+  const img = new Image();
+  img.onload = function() {
+    // Set canvas dimensions to match the zoomed image
+    canvas.width = img.width * currentScale;
+    canvas.height = img.height * currentScale;
     
-    // Draw the image with magnification
+    // Draw the image with the current scale
     ctx.scale(currentScale, currentScale);
-    ctx.drawImage(tempImg, 0, 0);
+    ctx.drawImage(img, 0, 0);
     
     // Apply grayscale if needed
     if (grayscaleCheckbox.checked) {
@@ -1513,40 +1197,39 @@ downloadBtn.addEventListener('click', () => {
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
         const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        data[i] = avg;     // red
-        data[i + 1] = avg; // green
-        data[i + 2] = avg; // blue
+        data[i] = avg;
+        data[i + 1] = avg;
+        data[i + 2] = avg;
       }
       ctx.putImageData(imageData, 0, 0);
     }
     
-    // Create download link
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    a.href = dataUrl;
-    a.download = 'magnified-image.jpg';
-    a.click();
+    // Generate download link
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'magnified_image.png';
+    link.click();
   };
-  tempImg.src = imageData;
+  img.src = imageData;
 });
 
-croppedDownloadBtn.addEventListener('click', () => {
-  if (!croppedImageData) return;
+croppedDownloadBtn.addEventListener('click', function() {
+  // Create a temporary link to download the image
+  const link = document.createElement('a');
   
-  const a = document.createElement('a');
-  
-  // Create a temporary canvas to apply magnification
+  // Create a canvas to apply current zoom and filters
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   
-  const tempImg = new Image();
-  tempImg.onload = function() {
-    // Apply the current magnification
-    canvas.width = tempImg.width * croppedCurrentScale;
-    canvas.height = tempImg.height * croppedCurrentScale;
+  // Create a new image for processing
+  const img = new Image();
+  img.onload = function() {
+    // Set canvas dimensions to match the zoomed image
+    canvas.width = img.width * croppedCurrentScale;
+    canvas.height = img.height * croppedCurrentScale;
     
-    // Draw the image with magnification
+    // Draw the image with the current scale
     ctx.scale(croppedCurrentScale, croppedCurrentScale);
-    ctx.drawImage(tempImg, 0, 0);
+    ctx.drawImage(img, 0, 0);
     
     // Apply grayscale if needed
     if (croppedGrayscaleCheckbox.checked) {
@@ -1554,30 +1237,36 @@ croppedDownloadBtn.addEventListener('click', () => {
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
         const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        data[i] = avg;     // red
-        data[i + 1] = avg; // green
-        data[i + 2] = avg; // blue
+        data[i] = avg;
+        data[i + 1] = avg;
+        data[i + 2] = avg;
       }
       ctx.putImageData(imageData, 0, 0);
     }
     
-    // Create download link
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    a.href = dataUrl;
-    a.download = 'cropped-image.jpg';
-    a.click();
+    // Generate download link
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'cropped_image.png';
+    link.click();
   };
-  tempImg.src = croppedImageData;
+  img.src = croppedImageData;
 });
 
-newImageBtn.addEventListener('click', () => {
+backToOriginalBtn.addEventListener('click', function() {
+  document.querySelector('.tab[data-tab="original"]').click();
+});
+
+newImageBtn.addEventListener('click', function() {
   uploadSection.style.display = 'block';
   magnifierSection.style.display = 'none';
   fileInput.value = '';
+  croppedTab.style.display = 'none';
 });
 
-backToOriginalBtn.addEventListener('click', () => {
-  tabs[0].click();
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+  intensityValue.textContent = intensitySlider.value;
+  croppedIntensityValue.textContent = croppedIntensitySlider.value;
 });
 </script>
 </body>
