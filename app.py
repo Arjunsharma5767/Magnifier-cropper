@@ -911,42 +911,54 @@ function stopCroppedDragging() {
   isDragging = false;
 }
 
-// FIXED: Selection mode checkbox listener
-selectionModeCheckbox.addEventListener('change', function() {
+// Selection mode checkbox listener
+selectionModeCheckbox.addEventListener('change', function () {
   if (this.checked) {
     // Enable selection mode
-    magnifiedContainer.style.cursor = 'crosshair';
-    
-    // Add event listeners properly for selection
-    magnifiedContainer.addEventListener('mousedown', startSelection);
-    magnifiedContainer.addEventListener('touchstart', startSelectionTouch, {passive: false});
-    document.addEventListener('mousemove', updateSelection);
-    document.addEventListener('touchmove', updateSelectionTouch, {passive: false});
-    document.addEventListener('mouseup', endSelection);
-    document.addEventListener('touchend', endSelection);
-    
-    // Show existing selection if one exists
-    if (selectionActive) {
-      selectionBox.style.display = 'block';
-    }
+    enableSelectionMode();
   } else {
     // Disable selection mode
-    magnifiedContainer.style.cursor = 'grab';
-    
-    // Remove event listeners
-    magnifiedContainer.removeEventListener('mousedown', startSelection);
-    magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
-    document.removeEventListener('mousemove', updateSelection);
-    document.removeEventListener('touchmove', updateSelectionTouch);
-    document.removeEventListener('mouseup', endSelection);
-    document.removeEventListener('touchend', endSelection);
-    
-    // Keep selection visible if it's active
-    if (selectionActive) {
-      selectionBox.style.display = 'block';
-    }
+    disableSelectionMode();
   }
 });
+
+function enableSelectionMode() {
+  // Change cursor to indicate selection mode
+  magnifiedContainer.style.cursor = 'crosshair';
+
+  // Add event listeners for selection functionality
+  magnifiedContainer.addEventListener('mousedown', startSelection);
+  magnifiedContainer.addEventListener('touchstart', startSelectionTouch, { passive: false });
+  document.addEventListener('mousemove', updateSelection);
+  document.addEventListener('touchmove', updateSelectionTouch, { passive: false });
+  document.addEventListener('mouseup', endSelection);
+  document.addEventListener('touchend', endSelection);
+
+  // Display the selection box if there's an active selection
+  if (selectionActive) {
+    selectionBox.style.display = 'block';
+  }
+}
+
+function disableSelectionMode() {
+  // Change cursor back to default
+  magnifiedContainer.style.cursor = 'grab';
+
+  // Remove event listeners for selection functionality
+  magnifiedContainer.removeEventListener('mousedown', startSelection);
+  magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
+  document.removeEventListener('mousemove', updateSelection);
+  document.removeEventListener('touchmove', updateSelectionTouch);
+  document.removeEventListener('mouseup', endSelection);
+  document.removeEventListener('touchend', endSelection);
+
+  // Keep the selection box visible if there's an active selection
+  if (selectionActive) {
+    selectionBox.style.display = 'block';
+  } else {
+    selectionBox.style.display = 'none'; // Hide the selection box if inactive
+  }
+}
 
 // FIXED: Start selection function
 function startSelection(e) {
