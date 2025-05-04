@@ -1,6 +1,7 @@
 import os
 import base64
 from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, render_template
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
