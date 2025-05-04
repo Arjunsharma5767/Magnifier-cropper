@@ -1,4 +1,4 @@
-import os
+function startSelection(e) import os
 import base64
 from flask import Flask, request, jsonify, render_template_string
 
