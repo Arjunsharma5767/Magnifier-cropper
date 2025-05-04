@@ -652,7 +652,7 @@ h1 {
 </head>
 <body>
 <div class="container">
-  <h1>🔍 Image Magnifier & Cropper</h1>
+  <h1> Image Magnifier & Cropper</h1>
   <div id="upload-section">
     <div class="upload-area" id="drop-area" tabindex="0" role="button" aria-label="Upload image" onclick="fileInput.click()" onkeypress="if(event.key==='Enter'){fileInput.click();}">
       <div class="upload-icon">📁</div>
