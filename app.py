@@ -786,3 +786,90 @@ processBtn.addEventListener('click', async () => {
 
 downloadBtn.addEventListener('click', () => {
   if (!imageData) return;
+  const link = document.createElement('a');
+  link.href = imageData;
+  link.download = 'magnified-image.png';
+  link.click();
+});
+
+croppedDownloadBtn.addEventListener('click', () => {
+  if (!croppedImageData) return;
+  const link = document.createElement('a');
+  link.href = croppedImageData;
+  link.download = 'cropped-image.png';
+  link.click();
+});
+
+newImageBtn.addEventListener('click', () => {
+  uploadSection.style.display = 'block';
+  magnifierSection.style.display = 'none';
+});
+
+backToOriginalBtn.addEventListener('click', () => {
+  tabs[0].click(); // Switch back to original tab
+});
+
+intensitySlider.addEventListener('input', () => {
+  currentScale = parseFloat(intensitySlider.value);
+  intensityValue.textContent = currentScale.toFixed(1);
+  magnifiedImage.style.transform = `scale(${currentScale})`;
+  zoomInfo.textContent = `Current zoom: ${currentScale.toFixed(1)}x`;
+  applyGrayscale();
+});
+
+croppedIntensitySlider.addEventListener('input', () => {
+  croppedCurrentScale = parseFloat(croppedIntensitySlider.value);
+  croppedIntensityValue.textContent = croppedCurrentScale.toFixed(1);
+  croppedImage.style.transform = `scale(${croppedCurrentScale})`;
+  croppedZoomInfo.textContent = `Current zoom: ${croppedCurrentScale.toFixed(1)}x`;
+  croppedImage.style.filter = croppedGrayscaleCheckbox.checked ? 'grayscale(100%)' : 'none';
+});
+
+grayscaleCheckbox.addEventListener('change', applyGrayscale);
+croppedGrayscaleCheckbox.addEventListener('change', () => {
+  croppedImage.style.filter = croppedGrayscaleCheckbox.checked ? 'grayscale(100%)' : 'none';
+});
+
+function applyGrayscale() {
+  magnifiedImage.style.filter = grayscaleCheckbox.checked ? 'grayscale(100%)' : 'none';
+}
+
+// Selection mode functionality
+selectionModeCheckbox.addEventListener('change', () => {
+  selectionActive = selectionModeCheckbox.checked;
+  selectionBox.style.display = selectionActive ? 'block' : 'none';
+});
+
+magnifiedContainer.addEventListener('mousedown', (e) => {
+  if (selectionActive) {
+    selectionStartX = e.clientX;
+    selectionStartY = e.clientY;
+    selectionBox.style.left = `${selectionStartX}px`;
+    selectionBox.style.top = `${selectionStartY}px`;
+    selectionBox.style.width = '0px';
+    selectionBox.style.height = '0px';
+    selectionActive = true;
+  }
+});
+
+magnifiedContainer.addEventListener('mousemove', (e) => {
+  if (selectionActive) {
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const width = currentX - selectionStartX;
+    const height = currentY - selectionStartY;
+    selectionBox.style.width = `${Math.abs(width)}px`;
+    selectionBox.style.height = `${Math.abs(height)}px`;
+    selectionBox.style.left = `${width < 0 ? currentX : selectionStartX}px`;
+    selectionBox.style.top = `${height < 0 ? currentY : selectionStartY}px`;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  selectionActive = false;
+});
+
+// Initialize Flask app
+if __name__ == '__main__':
+    app.run(debug=True)
+
