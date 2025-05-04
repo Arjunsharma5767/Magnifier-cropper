@@ -1057,23 +1057,20 @@ function updateSelectionBox() {
   selectionBox.style.height = height + 'px';
 }
 
-// FIXED: End selection function
 function endSelection() {
   if (!isSelecting) return;
   isSelecting = false;
-  
+
   // Check if selection has a valid size
-  const width = parseInt(selectionBox.style.width);
-  const height = parseInt(selectionBox.style.height);
-  
-  if (width < 10 || height < 10) {
-    // Selection too small, hide the box
-    selectionBox.style.display = 'none';
-    selectionActive = false;
-  } else {
-    // Keep the selection visible and mark it as active
+  const width = parseInt(selectionBox.style.width) || 0;
+  const height = parseInt(selectionBox.style.height) || 0;
+
+  if (width >= 10 && height >= 10) {
     selectionActive = true;
-    selectionBox.style.display = 'block';
+    selectionBox.style.display = 'block'; // Ensure it stays visible
+  } else {
+    selectionActive = false;
+    selectionBox.style.display = 'none'; // Hide invalid selection
   }
 }
 
