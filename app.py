@@ -1,12 +1,10 @@
-`image_magnifier_cropper_app.py`
-```py
 import os
 import base64
-from flask import Flask, request, jsonify, render_template_string
-from flask_cors import CORS
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
+from flask_cors import CORS  # Added for cross-origin support
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS for all routes
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
 CSS_STYLE = """
@@ -474,7 +472,6 @@ let isSelecting = false;
 let selectionStartX, selectionStartY;
 let selectionCurrentX, selectionCurrentY;
 let selectionActive = false;
-let selectionRect = { left: 0, top: 0, width: 0, height: 0 };
 
 // Resize variables
 let isResizing = false;
@@ -657,224 +654,73 @@ function setupResizeHandles() {
     handle.addEventListener('mousedown', startResizing);
     handle.addEventListener('touchstart', startResizingTouch, {passive: false});
   });
-}
-
-// Improved selection mode checkbox event listener
-selectionModeCheckbox.addEventListener('change', function() {
-  if (this.checked) {
-    // Enable selection mode
-    selectionBox.style.display = 'none';
-    selectionActive = false;
-    magnifiedImage.style.cursor = 'crosshair';
-    magnifiedContainer.style.cursor = 'crosshair';
-    
-    // Add event listeners for selection
-    magnifiedContainer.addEventListener('mousedown', startSelection);
-    magnifiedContainer.addEventListener('touchstart', startSelectionTouch, { passive: false });
-  } else {
-    // Disable selection mode
-    isSelecting = false;
-    selectionBox.style.display = 'none';
-    selectionActive = false;
-    magnifiedImage.style.cursor = 'grab';
-    magnifiedContainer.style.cursor = 'default';
-    
-    // Remove event listeners for selection
-    magnifiedContainer.removeEventListener('mousedown', startSelection);
-    magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
-  }
-});
-
-function startSelection(e) {
-  if (!selectionModeCheckbox.checked || isResizing || isSelecting) return;
   
-  e.preventDefault();
-  e.stopPropagation();
-  
-  isSelecting = true;
-  isDragging = false; // Prevent dragging while selecting
-  
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionStartX = e.clientX - containerRect.left;
-  selectionStartY = e.clientY - containerRect.top;
-  
-  // Initialize selection rectangle
-  selectionRect = {
-    left: selectionStartX,
-    top: selectionStartY,
-    width: 0,
-    height: 0
-  };
-  
-  updateSelectionBoxDisplay();
-  
-  document.addEventListener('mousemove', updateSelection);
-  document.addEventListener('mouseup', finishSelection);
-}
-
-function startSelectionTouch(e) {
-  if (!selectionModeCheckbox.checked || e.touches.length !== 1 || isResizing || isSelecting) return;
-  
-  e.preventDefault();
-  e.stopPropagation();
-  
-  isSelecting = true;
-  isDragging = false; // Prevent dragging while selecting
-  
-  const touch = e.touches[0];
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionStartX = touch.clientX - containerRect.left;
-  selectionStartY = touch.clientY - containerRect.top;
-  
-  selectionRect = {
-    left: selectionStartX,
-    top: selectionStartY,
-    width: 0,
-    height: 0
-  };
-  
-  updateSelectionBoxDisplay();
-  
-  document.addEventListener('touchmove', updateSelectionTouch, { passive: false });
-  document.addEventListener('touchend', finishSelection);
-}
-
-function updateSelection(e) {
-  if (!isSelecting) return;
-  
-  e.preventDefault();
-  e.stopPropagation();
-  
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionCurrentX = Math.max(0, Math.min(e.clientX - containerRect.left, containerRect.width));
-  selectionCurrentY = Math.max(0, Math.min(e.clientY - containerRect.top, containerRect.height));
-  
-  calculateSelectionRect();
-  updateSelectionBoxDisplay();
-}
-
-function updateSelectionTouch(e) {
-  if (!isSelecting || e.touches.length !== 1) return;
-  
-  e.preventDefault();
-  e.stopPropagation();
-  
-  const touch = e.touches[0];
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionCurrentX = Math.max(0, Math.min(touch.clientX - containerRect.left, containerRect.width));
-  selectionCurrentY = Math.max(0, Math.min(touch.clientY - containerRect.top, containerRect.height));
-  
-  calculateSelectionRect();
-  updateSelectionBoxDisplay();
-}
-
-function calculateSelectionRect() {
-  selectionRect = {
-    left: Math.min(selectionStartX, selectionCurrentX),
-    top: Math.min(selectionStartY, selectionCurrentY),
-    width: Math.abs(selectionCurrentX - selectionStartX),
-    height: Math.abs(selectionCurrentY - selectionStartY)
-  };
-  
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  selectionRect.left = Math.max(0, Math.min(selectionRect.left, containerRect.width - 10));
-  selectionRect.top = Math.max(0, Math.min(selectionRect.top, containerRect.height - 10));
-  selectionRect.width = Math.min(selectionRect.width, containerRect.width - selectionRect.left);
-  selectionRect.height = Math.min(selectionRect.height, containerRect.height - selectionRect.top);
-}
-
-function updateSelectionBoxDisplay() {
-  selectionBox.style.left = selectionRect.left + 'px';
-  selectionBox.style.top = selectionRect.top + 'px';
-  selectionBox.style.width = selectionRect.width + 'px';
-  selectionBox.style.height = selectionRect.height + 'px';
-  selectionBox.style.display = 'block';
-  
-  selectionActive = (selectionRect.width > 5 && selectionRect.height > 5);
-}
-
-function finishSelection(e) {
-  if (!isSelecting) return;
-  
-  isSelecting = false;
-  
-  document.removeEventListener('mousemove', updateSelection);
-  document.removeEventListener('mouseup', finishSelection);
-  document.removeEventListener('touchmove', updateSelectionTouch);
-  document.removeEventListener('touchend', finishSelection);
-  
-  if (!selectionActive) {
-    selectionBox.style.display = 'none';
-  }
+  document.addEventListener('mousemove', resizeSelection);
+  document.addEventListener('touchmove', resizeSelectionTouch, {passive: false});
+  document.addEventListener('mouseup', stopResizing);
+  document.addEventListener('touchend', stopResizing);
 }
 
 function startResizing(e) {
-  if (!selectionModeCheckbox.checked || !selectionActive) return;
-  
   e.preventDefault();
   e.stopPropagation();
+  if (!selectionModeCheckbox.checked) return;
   
   isResizing = true;
-  isDragging = false;
   currentResizeHandle = e.target.getAttribute('data-handle');
   
+  // Get the initial box dimensions
   initialBoxLeft = parseInt(selectionBox.style.left) || 0;
   initialBoxTop = parseInt(selectionBox.style.top) || 0;
   initialBoxWidth = parseInt(selectionBox.style.width) || 0;
   initialBoxHeight = parseInt(selectionBox.style.height) || 0;
   
+  // Get the starting mouse position
   startX = e.clientX;
   startY = e.clientY;
-  
-  document.addEventListener('mousemove', resizeSelection);
-  document.addEventListener('mouseup', stopResizing);
 }
 
 function startResizingTouch(e) {
-  if (!selectionModeCheckbox.checked || !selectionActive || e.touches.length !== 1) return;
+  if (!selectionModeCheckbox.checked || e.touches.length !== 1) return;
   
   e.preventDefault();
   e.stopPropagation();
   
   isResizing = true;
-  isDragging = false;
   currentResizeHandle = e.target.getAttribute('data-handle');
   
+  // Get the initial box dimensions
   initialBoxLeft = parseInt(selectionBox.style.left) || 0;
   initialBoxTop = parseInt(selectionBox.style.top) || 0;
   initialBoxWidth = parseInt(selectionBox.style.width) || 0;
   initialBoxHeight = parseInt(selectionBox.style.height) || 0;
   
+  // Get the starting touch position
   const touch = e.touches[0];
   startX = touch.clientX;
   startY = touch.clientY;
-  
-  document.addEventListener('touchmove', resizeSelectionTouch, { passive: false });
-  document.addEventListener('touchend', stopResizing);
 }
 
 function resizeSelection(e) {
   if (!isResizing) return;
-  
   e.preventDefault();
-  e.stopPropagation();
   
   const dx = e.clientX - startX;
   const dy = e.clientY - startY;
   
+  // Apply the resize based on which handle is being dragged
   applyResize(dx, dy);
 }
 
 function resizeSelectionTouch(e) {
   if (!isResizing || e.touches.length !== 1) return;
-  
   e.preventDefault();
-  e.stopPropagation();
   
   const touch = e.touches[0];
   const dx = touch.clientX - startX;
   const dy = touch.clientY - startY;
   
+  // Apply the resize based on which handle is being dragged
   applyResize(dx, dy);
 }
 
@@ -886,207 +732,80 @@ function applyResize(dx, dy) {
   
   const containerRect = magnifiedContainer.getBoundingClientRect();
   
+  // Handle the resize based on which handle is being dragged
   switch(currentResizeHandle) {
-    case 'nw':
-      newLeft = Math.max(0, Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10));
-      newTop = Math.max(0, Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10));
+    case 'nw': // Northwest
+      newLeft = Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10);
+      newTop = Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10);
       newWidth = Math.max(10, initialBoxWidth - dx);
       newHeight = Math.max(10, initialBoxHeight - dy);
       break;
-    case 'n':
-      newTop = Math.max(0, Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10));
+    case 'n': // North
+      newTop = Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10);
       newHeight = Math.max(10, initialBoxHeight - dy);
       break;
-    case 'ne':
-      newTop = Math.max(0, Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10));
+    case 'ne': // Northeast
+      newTop = Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10);
       newWidth = Math.max(10, initialBoxWidth + dx);
       newHeight = Math.max(10, initialBoxHeight - dy);
       break;
-    case 'e':
+    case 'e': // East
       newWidth = Math.max(10, initialBoxWidth + dx);
       break;
-    case 'se':
+    case 'se': // Southeast
       newWidth = Math.max(10, initialBoxWidth + dx);
       newHeight = Math.max(10, initialBoxHeight + dy);
       break;
-    case 's':
+    case 's': // South
       newHeight = Math.max(10, initialBoxHeight + dy);
       break;
-    case 'sw':
-      newLeft = Math.max(0, Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10));
+    case 'sw': // Southwest
+      newLeft = Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10);
       newWidth = Math.max(10, initialBoxWidth - dx);
       newHeight = Math.max(10, initialBoxHeight + dy);
       break;
-    case 'w':
-      newLeft = Math.max(0, Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10));
+    case 'w': // West
+      newLeft = Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10);
       newWidth = Math.max(10, initialBoxWidth - dx);
       break;
   }
   
-  newLeft = Math.max(0, Math.min(newLeft, containerRect.width - 10));
-  newTop = Math.max(0, Math.min(newTop, containerRect.height - 10));
-  newWidth = Math.max(10, Math.min(newWidth, containerRect.width - newLeft));
-  newHeight = Math.max(10, Math.min(newHeight, containerRect.height - newTop));
+  // Constrain to container bounds
+  newLeft = Math.max(0, Math.min(newLeft, containerRect.width - newWidth));
+  newTop = Math.max(0, Math.min(newTop, containerRect.height - newHeight));
   
-  selectionRect = {
-    left: newLeft,
-    top: newTop,
-    width: newWidth,
-    height: newHeight
-  };
-  
-  updateSelectionBoxDisplay();
+  // Apply new dimensions
+  selectionBox.style.left = newLeft + 'px';
+  selectionBox.style.top = newTop + 'px';
+  selectionBox.style.width = newWidth + 'px';
+  selectionBox.style.height = newHeight + 'px';
 }
 
 function stopResizing() {
-  if (!isResizing) return;
-  
   isResizing = false;
   currentResizeHandle = null;
-  
-  document.removeEventListener('mousemove', resizeSelection);
-  document.removeEventListener('mouseup', stopResizing);
-  document.removeEventListener('touchmove', resizeSelectionTouch);
-  document.removeEventListener('touchend', stopResizing);
 }
 
-processBtn.addEventListener('click', function() {
-  if (!selectionActive) {
-    alert('Please make a selection first');
-    return;
-  }
-  
-  loadingIndicator.style.display = 'block';
-  
-  setTimeout(() => {
-    const selLeft = selectionRect.left;
-    const selTop = selectionRect.top;
-    const selWidth = selectionRect.width;
-    const selHeight = selectionRect.height;
-    
-    const imgRect = magnifiedImage.getBoundingClientRect();
-    const imgLeft = parseInt(magnifiedImage.style.left) || 0;
-    const imgTop = parseInt(magnifiedImage.style.top) || 0;
-    const imgWidth = magnifiedImage.naturalWidth;
-    const imgHeight = magnifiedImage.naturalHeight;
-    
-    const scaledImgWidth = imgRect.width / currentScale;
-    const scaledImgHeight = imgRect.height / currentScale;
-    
-    const cropX = (selLeft - imgLeft) / currentScale;
-    const cropY = (selTop - imgTop) / currentScale;
-    const cropWidth = selWidth / currentScale;
-    const cropHeight = selHeight / currentScale;
-    
-    if (cropX < 0 || cropY < 0 || cropWidth <= 0 || cropHeight <= 0 || 
-        cropX + cropWidth > imgWidth || cropY + cropHeight > imgHeight) {
-      const validCropX = Math.max(0, Math.min(cropX, imgWidth - 1));
-      const validCropY = Math.max(0, Math.min(cropY, imgHeight - 1));
-      const validCropWidth = Math.max(1, Math.min(cropWidth, imgWidth - validCropX));
-      const validCropHeight = Math.max(1, Math.min(cropHeight, imgHeight - validCropY));
-      
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      canvas.width = validCropWidth;
-      canvas.height = validCropHeight;
-      
-      const img = new Image();
-      img.onload = function() {
-        ctx.drawImage(
-          img,
-          validCropX, validCropY, validCropWidth, validCropHeight,
-          0, 0, validCropWidth, validCropHeight
-        );
-        
-        croppedImageData = canvas.toDataURL('image/png');
-        setupCroppedView();
-      };
-      img.onerror = handleCropError;
-      img.src = imageData;
-    } else {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      canvas.width = cropWidth;
-      canvas.height = cropHeight;
-      
-      const img = new Image();
-      img.onload = function() {
-        ctx.drawImage(
-          img,
-          cropX, cropY, cropWidth, cropHeight,
-          0, 0, cropWidth, cropHeight
-        );
-        
-        croppedImageData = canvas.toDataURL('image/png');
-        setupCroppedView();
-      };
-      img.onerror = handleCropError;
-      img.src = imageData;
-    }
-  }, 100);
-  
-  function handleCropError() {
-    alert('Error cropping image. Please try again.');
-    loadingIndicator.style.display = 'none';
-  }
-  
-  function setupCroppedView() {
-    croppedImage.src = croppedImageData;
-    croppedImage.style.width = 'auto';
-    croppedImage.style.height = 'auto';
-    croppedImage.style.maxWidth = '100%';
-    croppedImage.style.maxHeight = '100%';
-    
-    croppedImage.onload = function() {
-      const containerWidth = document.querySelector('#cropped-tab-content #magnified-image-container').clientWidth;
-      const containerHeight = document.querySelector('#cropped-tab-content #magnified-image-container').clientHeight;
-      const imgWidth = croppedImage.clientWidth;
-      const imgHeight = croppedImage.clientHeight;
-      
-      const leftPos = (containerWidth - imgWidth) / 2;
-      const topPos = (containerHeight - imgHeight) / 2;
-      
-      croppedImage.style.left = leftPos + 'px';
-      croppedImage.style.top = topPos + 'px';
-      croppedImage.style.transform = 'scale(1)';
-      
-      croppedImageWidth = imgWidth;
-      croppedImageHeight = imgHeight;
-      
-      croppedIntensitySlider.value = 1;
-      croppedIntensityValue.textContent = '1';
-      croppedCurrentScale = 1.0;
-      croppedZoomInfo.textContent = 'Current zoom: 1.0x';
-      croppedGrayscaleCheckbox.checked = grayscaleCheckbox.checked;
-      applyGrayscaleCropped();
-      
-      croppedTab.style.display = 'block';
-      croppedTab.click();
-      
-      loadingIndicator.style.display = 'none';
-    };
-  }
-});
-
 function startDragging(e) {
-  if (selectionModeCheckbox.checked || isSelecting || isResizing) return;
+  // Don't start dragging if we're in selection mode or resizing
+  if (selectionModeCheckbox.checked || isResizing) return;
   
   e.preventDefault();
   isDragging = true;
 
-  startX = e.clientX;
-  startY = e.clientY;
+  startX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+  startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
 
   startLeft = parseInt(magnifiedImage.style.left) || 0;
   startTop = parseInt(magnifiedImage.style.top) || 0;
   
+  // Change cursor to indicate dragging
   magnifiedImage.style.cursor = 'grabbing';
 }
 
 function startDraggingTouch(e) {
-  if (e.touches.length !== 1 || selectionModeCheckbox.checked || isSelecting || isResizing) return;
+  // Don't handle if multiple touches or if we're in selection mode
+  if (e.touches.length !== 1 || selectionModeCheckbox.checked || isResizing) return;
   
   e.preventDefault();
   isDragging = true;
@@ -1097,15 +816,13 @@ function startDraggingTouch(e) {
   
   startLeft = parseInt(magnifiedImage.style.left) || 0;
   startTop = parseInt(magnifiedImage.style.top) || 0;
-  
-  magnifiedImage.style.cursor = 'grabbing';
 }
 
 function dragImage(e) {
   if (!isDragging) {
+    // Handle selection if in selection mode and left mouse button is pressed
     if (selectionModeCheckbox.checked && e.buttons === 1) {
-      // Prevent dragging while selecting
-      return;
+      handleSelection(e);
     }
     return;
   }
@@ -1138,17 +855,169 @@ function dragImageTouch(e) {
 
 function stopDragging() {
   isDragging = false;
+  isSelecting = false;
+  magnifiedImage.style.cursor = 'grab';
+}
+
+// Cropped image dragging functions
+function startCroppedDragging(e) {
+  e.preventDefault();
+  isDragging = true;
+
+  startX = e.clientX;
+  startY = e.clientY;
+
+  startLeft = parseInt(croppedImage.style.left) || 0;
+  startTop = parseInt(croppedImage.style.top) || 0;
   
+  croppedImage.style.cursor = 'grabbing';
+}
+
+function startCroppedDraggingTouch(e) {
+  if (e.touches.length !== 1) return;
+  
+  e.preventDefault();
+  isDragging = true;
+  
+  const touch = e.touches[0];
+  startX = touch.clientX;
+  startY = touch.clientY;
+  
+  startLeft = parseInt(croppedImage.style.left) || 0;
+  startTop = parseInt(croppedImage.style.top) || 0;
+}
+
+function dragCroppedImage(e) {
+  if (!isDragging) return;
+  
+  e.preventDefault();
+  const x = e.clientX;
+  const y = e.clientY;
+  
+  const newLeft = startLeft + (x - startX);
+  const newTop = startTop + (y - startY);
+  
+  croppedImage.style.left = newLeft + 'px';
+  croppedImage.style.top = newTop + 'px';
+}
+
+function dragCroppedImageTouch(e) {
+  if (!isDragging || e.touches.length !== 1) return;
+  
+  e.preventDefault();
+  const touch = e.touches[0];
+  const x = touch.clientX;
+  const y = touch.clientY;
+  
+  const newLeft = startLeft + (x - startX);
+  const newTop = startTop + (y - startY);
+  
+  croppedImage.style.left = newLeft + 'px';
+  croppedImage.style.top = newTop + 'px';
+}
+
+function stopCroppedDragging() {
+  isDragging = false;
+  croppedImage.style.cursor = 'grab';
+}
+
+// Selection functions
+// First, modify the stopDragging function to preserve the selection when in selection mode
+function stopDragging() {
+  isDragging = false;
+  
+  // Don't reset isSelecting if we're in selection mode AND we've created a valid selection
   if (!selectionModeCheckbox.checked || !selectionActive) {
     isSelecting = false;
   }
   
-  magnifiedImage.style.cursor = selectionModeCheckbox.checked ? 'crosshair' : 'grab';
+  magnifiedImage.style.cursor = 'grab';
+  
+  // If we're in selection mode, change cursor back to crosshair
+  if (selectionModeCheckbox.checked) {
+    magnifiedImage.style.cursor = 'crosshair';
+  }
 }
 
-// Cropped image dragging handlers omitted for brevity; you can copy previous handlers similarly
+// Then, modify the handleSelection function to better handle selection completion
+function handleSelection(e) {
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  const x = e.clientX - containerRect.left;
+  const y = e.clientY - containerRect.top;
+  
+  if (!isSelecting) {
+    // Start selection
+    isSelecting = true;
+    selectionStartX = x;
+    selectionStartY = y;
+    selectionBox.style.left = x + 'px';
+    selectionBox.style.top = y + 'px';
+    selectionBox.style.width = '0';
+    selectionBox.style.height = '0';
+    selectionBox.style.display = 'block';
+  } else {
+    // Update selection
+    selectionCurrentX = x;
+    selectionCurrentY = y;
+    
+    // Calculate top-left corner and dimensions
+    const selLeft = Math.min(selectionStartX, selectionCurrentX);
+    const selTop = Math.min(selectionStartY, selectionCurrentY);
+    const selWidth = Math.abs(selectionCurrentX - selectionStartX);
+    const selHeight = Math.abs(selectionCurrentY - selectionStartY);
+    
+    // Apply to selection box
+    selectionBox.style.left = selLeft + 'px';
+    selectionBox.style.top = selTop + 'px';
+    selectionBox.style.width = selWidth + 'px';
+    selectionBox.style.height = selHeight + 'px';
+    
+    // Only mark selection as active if it has a meaningful size
+    if (selWidth > 5 && selHeight > 5) {
+      selectionActive = true;
+    }
+  }
+}
 
-// Zoom and grayscale handlers
+// Update the mouseup event listener to finalize the selection
+magnifiedContainer.addEventListener('mouseup', function(e) {
+  if (selectionModeCheckbox.checked && isSelecting) {
+    // Finalize the selection but keep isSelecting true if we've made a valid selection
+    if (selectionActive) {
+      isSelecting = false;
+    }
+  }
+});
+
+// Also update the touchend event for touch devices
+magnifiedContainer.addEventListener('touchend', function(e) {
+  if (selectionModeCheckbox.checked && isSelecting) {
+    // Finalize the selection but keep isSelecting true if we've made a valid selection
+    if (selectionActive) {
+      isSelecting = false;
+    }
+  }
+});
+
+// Update the selectionModeCheckbox event listener to properly initialize/reset selection state
+selectionModeCheckbox.addEventListener('change', function() {
+  if (this.checked) {
+    // Enable selection mode
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+    magnifiedImage.style.cursor = 'crosshair';
+    
+    // These event listeners are already in your code, but make sure they're updated
+    // with the new handleSelection function
+  } else {
+    // Disable selection mode
+    isSelecting = false;
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+    magnifiedImage.style.cursor = 'grab';
+  }
+});
+// Zoom functionality
 intensitySlider.addEventListener('input', function() {
   const value = parseFloat(this.value);
   intensityValue.textContent = value.toFixed(1);
@@ -1165,6 +1034,7 @@ croppedIntensitySlider.addEventListener('input', function() {
   croppedZoomInfo.textContent = `Current zoom: ${value.toFixed(1)}x`;
 });
 
+// Grayscale functionality
 grayscaleCheckbox.addEventListener('change', applyGrayscale);
 croppedGrayscaleCheckbox.addEventListener('change', applyGrayscaleCropped);
 
@@ -1184,19 +1054,128 @@ function applyGrayscaleCropped() {
   }
 }
 
+// Process (crop) button functionality
+processBtn.addEventListener('click', function() {
+  if (!selectionActive) {
+    alert('Please make a selection first');
+    return;
+  }
+  
+  loadingIndicator.style.display = 'block';
+  
+  setTimeout(() => {
+    // Calculate the selection in terms of the original image
+    const imgRect = magnifiedImage.getBoundingClientRect();
+    const containerRect = magnifiedContainer.getBoundingClientRect();
+    
+    // Get selection box coordinates relative to container
+    const selLeft = parseInt(selectionBox.style.left);
+    const selTop = parseInt(selectionBox.style.top);
+    const selWidth = parseInt(selectionBox.style.width);
+    const selHeight = parseInt(selectionBox.style.height);
+    
+    // Calculate original image position and dimensions
+    const imgLeft = parseInt(magnifiedImage.style.left);
+    const imgTop = parseInt(magnifiedImage.style.top);
+    const imgWidth = magnifiedImage.clientWidth / currentScale;
+    const imgHeight = magnifiedImage.clientHeight / currentScale;
+    
+    // Calculate the selection in terms of the original image
+    const cropX = (selLeft - imgLeft) / currentScale;
+    const cropY = (selTop - imgTop) / currentScale;
+    const cropWidth = selWidth / currentScale;
+    const cropHeight = selHeight / currentScale;
+    
+    // Create a canvas to crop the image
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas dimensions to cropped size
+    canvas.width = cropWidth;
+    canvas.height = cropHeight;
+    
+    // Create an image to draw from
+    const img = new Image();
+    img.onload = function() {
+      // Draw the cropped portion to the canvas
+      ctx.drawImage(
+        img,
+        cropX, cropY, cropWidth, cropHeight,
+        0, 0, cropWidth, cropHeight
+      );
+      
+      // Convert canvas to data URL
+      croppedImageData = canvas.toDataURL('image/png');
+      
+      // Setup cropped image view
+      croppedImage.src = croppedImageData;
+      croppedImage.style.width = 'auto';
+      croppedImage.style.height = 'auto';
+      croppedImage.style.maxWidth = '100%';
+      croppedImage.style.maxHeight = '100%';
+      
+      // Center the cropped image after it loads
+      croppedImage.onload = function() {
+        const containerWidth = document.querySelector('#cropped-tab-content #magnified-image-container').clientWidth;
+        const containerHeight = document.querySelector('#cropped-tab-content #magnified-image-container').clientHeight;
+        const imgWidth = croppedImage.clientWidth;
+        const imgHeight = croppedImage.clientHeight;
+        
+        // Calculate the position to center the image
+        const leftPos = (containerWidth - imgWidth) / 2;
+        const topPos = (containerHeight - imgHeight) / 2;
+        
+        croppedImage.style.left = leftPos + 'px';
+        croppedImage.style.top = topPos + 'px';
+        croppedImage.style.transform = 'scale(1)';
+        
+        // Update cropped image width and height variables
+        croppedImageWidth = imgWidth;
+        croppedImageHeight = imgHeight;
+        
+        // Reset cropped view controls
+        croppedIntensitySlider.value = 1;
+        croppedIntensityValue.textContent = '1';
+        croppedCurrentScale = 1.0;
+        croppedZoomInfo.textContent = 'Current zoom: 1.0x';
+        croppedGrayscaleCheckbox.checked = grayscaleCheckbox.checked;
+        applyGrayscaleCropped();
+        
+        // Show cropped tab
+        croppedTab.style.display = 'block';
+        croppedTab.click();
+        
+        loadingIndicator.style.display = 'none';
+      };
+    };
+    img.onerror = function() {
+      alert('Error cropping image. Please try again.');
+      loadingIndicator.style.display = 'none';
+    };
+    img.src = imageData;
+  }, 100);
+});
+
+// Download functions
 downloadBtn.addEventListener('click', function() {
+  // Create an anchor element
   const a = document.createElement('a');
+  
+  // Create a new canvas to capture the whole view including zoom and position
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   
+  // Set canvas dimensions to container dimensions
   const containerWidth = magnifiedContainer.clientWidth;
   const containerHeight = magnifiedContainer.clientHeight;
   canvas.width = containerWidth;
   canvas.height = containerHeight;
   
+  // Fill canvas with white background
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
+  // Calculate visible portion of the image
   const img = new Image();
   img.onload = function() {
     const scaledImgWidth = img.width * currentScale;
@@ -1205,16 +1184,25 @@ downloadBtn.addEventListener('click', function() {
     const imgLeft = parseInt(magnifiedImage.style.left) || 0;
     const imgTop = parseInt(magnifiedImage.style.top) || 0;
     
+    // Draw image to canvas with current transform
     ctx.save();
+    
+    // Apply grayscale if needed
     if (grayscaleCheckbox.checked) {
       ctx.filter = 'grayscale(100%)';
     }
+    
     ctx.drawImage(img, imgLeft, imgTop, scaledImgWidth, scaledImgHeight);
     ctx.restore();
     
+    // Convert canvas to data URL
     const dataUrl = canvas.toDataURL('image/png');
+    
+    // Set download attributes
     a.href = dataUrl;
     a.download = 'magnified_image.png';
+    
+    // Trigger download
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1225,18 +1213,24 @@ downloadBtn.addEventListener('click', function() {
 croppedDownloadBtn.addEventListener('click', function() {
   if (!croppedImageData) return;
   
+  // Create an anchor element
   const a = document.createElement('a');
+  
+  // Create a new canvas to capture the whole view including zoom and position
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   
+  // Set canvas dimensions to container dimensions
   const containerWidth = document.querySelector('#cropped-tab-content #magnified-image-container').clientWidth;
   const containerHeight = document.querySelector('#cropped-tab-content #magnified-image-container').clientHeight;
   canvas.width = containerWidth;
   canvas.height = containerHeight;
   
+  // Fill canvas with white background
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
+  // Calculate visible portion of the image
   const img = new Image();
   img.onload = function() {
     const scaledImgWidth = img.width * croppedCurrentScale;
@@ -1245,7 +1239,10 @@ croppedDownloadBtn.addEventListener('click', function() {
     const imgLeft = parseInt(croppedImage.style.left) || 0;
     const imgTop = parseInt(croppedImage.style.top) || 0;
     
+    // Draw image to canvas with current transform
     ctx.save();
+    
+    // Apply grayscale if needed
     if (croppedGrayscaleCheckbox.checked) {
       ctx.filter = 'grayscale(100%)';
     }
@@ -1253,9 +1250,14 @@ croppedDownloadBtn.addEventListener('click', function() {
     ctx.drawImage(img, imgLeft, imgTop, scaledImgWidth, scaledImgHeight);
     ctx.restore();
     
+    // Convert canvas to data URL
     const dataUrl = canvas.toDataURL('image/png');
+    
+    // Set download attributes
     a.href = dataUrl;
     a.download = 'cropped_image.png';
+    
+    // Trigger download
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1277,37 +1279,25 @@ backToOriginalBtn.addEventListener('click', function() {
   document.querySelector('[data-tab="original"]').click();
 });
 
-// Keyboard shortcuts
+// Keyboard shortcuts for accessibility
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
-    if (isSelecting || isResizing) {
-      stopResizing();
-      finishSelection();
-      isSelecting = false;
-      isResizing = false;
-      selectionBox.style.display = 'none';
-      selectionActive = false;
-    } else if (selectionActive && selectionModeCheckbox.checked) {
-      selectionBox.style.display = 'none';
-      selectionActive = false;
-    } else if (selectionModeCheckbox.checked) {
+    // Cancel selection or dragging
+    isDragging = false;
+    isSelecting = false;
+    isResizing = false;
+    if (selectionModeCheckbox.checked) {
       selectionModeCheckbox.checked = false;
       selectionBox.style.display = 'none';
       selectionActive = false;
       magnifiedImage.style.cursor = 'grab';
-      magnifiedContainer.style.cursor = 'default';
-    }
-  } else if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (selectionActive && selectionModeCheckbox.checked) {
-      selectionBox.style.display = 'none';
-      selectionActive = false;
     }
   }
 });
 
 // Initialize the app
 window.addEventListener('DOMContentLoaded', function() {
-  magnifierSection.style.display = 'none';
+  magnifiedSection.style.display = 'none';
   errorMessage.style.display = 'none';
 });
 </script>
@@ -1329,12 +1319,15 @@ def process_image():
         return jsonify({'error': 'No image selected'}), 400
     
     if file:
+        # Read image data and convert to base64
         img_data = file.read()
         img_base64 = base64.b64encode(img_data).decode('utf-8')
         
+        # Process image parameters
         intensity = float(request.form.get('intensity', 1.0))
         convert_to_grayscale = request.form.get('grayscale', 'false') == 'true'
         
+        # Return the processed image data
         return jsonify({
             'image': f'data:image/jpeg;base64,{img_base64}',
             'intensity': intensity,
@@ -1347,7 +1340,8 @@ def crop_image():
     if not data or 'image' not in data:
         return jsonify({'error': 'No image data provided'}), 400
     
-    # For demo, return original image data
+    # In a real app, you would process the crop here
+    # For this demo, we'll just return the original image
     return jsonify({'image': data['image']})
 
 @app.route('/download', methods=['POST'])
@@ -1356,10 +1350,8 @@ def download_image():
     if not data or 'image' not in data:
         return jsonify({'error': 'No image data provided'}), 400
     
+    # Return the image data for download
     return jsonify({'downloadUrl': data['image']})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
-```
-
