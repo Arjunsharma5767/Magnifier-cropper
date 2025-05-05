@@ -472,201 +472,182 @@ let isSelecting = false;
 let selectionStartX, selectionStartY;
 let selectionCurrentX, selectionCurrentY;
 let selectionActive = false;
+let selectionRect = { left: 0, top: 0, width: 0, height: 0 };
 
 // Resize variables
 let isResizing = false;
 let currentResizeHandle = null;
 let initialBoxLeft, initialBoxTop, initialBoxWidth, initialBoxHeight;
 
-tabs.forEach(tab => {
-  tab.addEventListener('click', () => {
-    const tabId = tab.getAttribute('data-tab');
-    tabs.forEach(t => {
-      t.classList.remove('active');
-      t.setAttribute('aria-selected', 'false');
-      t.setAttribute('tabindex', '-1');
-    });
-    tabContents.forEach(tc => tc.classList.remove('active'));
-    tab.classList.add('active');
-    tab.setAttribute('aria-selected', 'true');
-    tab.setAttribute('tabindex', '0');
-    document.getElementById(`${tabId}-tab-content`).classList.add('active');
-    tab.focus();
-  });
+// Improve the selection mode checkbox event listener
+selectionModeCheckbox.addEventListener('change', function() {
+  if (this.checked) {
+    // Enable selection mode
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+    magnifiedImage.style.cursor = 'crosshair';
+    magnifiedContainer.style.cursor = 'crosshair';
+    
+    // Add event listeners for selection
+    magnifiedContainer.addEventListener('mousedown', startSelection);
+    magnifiedContainer.addEventListener('touchstart', startSelectionTouch, { passive: false });
+  } else {
+    // Disable selection mode
+    isSelecting = false;
+    selectionBox.style.display = 'none';
+    selectionActive = false;
+    magnifiedImage.style.cursor = 'grab';
+    magnifiedContainer.style.cursor = 'default';
+    
+    // Remove event listeners for selection
+    magnifiedContainer.removeEventListener('mousedown', startSelection);
+    magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
+  }
 });
 
-// Accessibility: keyboard support for tabs
-tabs.forEach(tab => {
-  tab.addEventListener('keydown', e => {
-    let index = Array.from(tabs).indexOf(tab);
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      let nextIndex = (index + 1) % tabs.length;
-      tabs[nextIndex].click();
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      let prevIndex = (index - 1 + tabs.length) % tabs.length;
-      tabs[prevIndex].click();
-    }
-  });
-});
-
-// Drag & drop listeners
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-  dropArea.addEventListener(eventName, preventDefaults, false);
-});
-function preventDefaults(e) {
+// Improved selection functions
+function startSelection(e) {
+  // Only start selection if selection mode is active and not already selecting or resizing
+  if (!selectionModeCheckbox.checked || isResizing || isSelecting) return;
+  
   e.preventDefault();
   e.stopPropagation();
-}
-['dragenter', 'dragover'].forEach(eventName =>
-  dropArea.addEventListener(eventName, () => {
-    dropArea.style.borderColor = '#4285f4';
-    dropArea.style.backgroundColor = '#f0f7ff';
-  })
-);
-['dragleave', 'drop'].forEach(eventName =>
-  dropArea.addEventListener(eventName, () => {
-    dropArea.style.borderColor = '#ccc';
-    dropArea.style.backgroundColor = 'transparent';
-  })
-);
-
-dropArea.addEventListener('drop', e => {
-  const dt = e.dataTransfer;
-  const files = dt.files;
-  if (files.length) handleFiles(files);
-});
-fileInput.addEventListener('change', e => {
-  const files = e.target.files;
-  if (files.length) handleFiles(files);
-});
-
-function handleFiles(files) {
-  errorMessage.style.display = 'none';
-  errorMessage.textContent = '';
   
-  if (files[0].type.startsWith('image/')) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      imageData = e.target.result;
-      setupMagnifier(imageData);
-    };
-    reader.onerror = function() {
-      showError("Failed to read the image file. Please try again.");
-    };
-    reader.readAsDataURL(files[0]);
-  } else {
-    showError("Please select a valid image file.");
+  isSelecting = true;
+  isDragging = false; // Prevent dragging while selecting
+  
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  selectionStartX = e.clientX - containerRect.left;
+  selectionStartY = e.clientY - containerRect.top;
+  
+  // Initialize selection box at start position with zero size
+  selectionRect = {
+    left: selectionStartX,
+    top: selectionStartY,
+    width: 0,
+    height: 0
+  };
+  
+  updateSelectionBoxDisplay();
+  
+  // Add temporary event listeners for tracking the selection
+  document.addEventListener('mousemove', updateSelection);
+  document.addEventListener('mouseup', finishSelection);
+}
+
+function startSelectionTouch(e) {
+  // Only handle single touch in selection mode
+  if (!selectionModeCheckbox.checked || e.touches.length !== 1 || isResizing || isSelecting) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
+  isSelecting = true;
+  isDragging = false; // Prevent dragging while selecting
+  
+  const touch = e.touches[0];
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  selectionStartX = touch.clientX - containerRect.left;
+  selectionStartY = touch.clientY - containerRect.top;
+  
+  // Initialize selection box at start position with zero size
+  selectionRect = {
+    left: selectionStartX,
+    top: selectionStartY,
+    width: 0,
+    height: 0
+  };
+  
+  updateSelectionBoxDisplay();
+  
+  // Add temporary event listeners for tracking the selection
+  document.addEventListener('touchmove', updateSelectionTouch, { passive: false });
+  document.addEventListener('touchend', finishSelection);
+}
+
+function updateSelection(e) {
+  if (!isSelecting) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  selectionCurrentX = Math.max(0, Math.min(e.clientX - containerRect.left, containerRect.width));
+  selectionCurrentY = Math.max(0, Math.min(e.clientY - containerRect.top, containerRect.height));
+  
+  calculateSelectionRect();
+  updateSelectionBoxDisplay();
+}
+
+function updateSelectionTouch(e) {
+  if (!isSelecting || e.touches.length !== 1) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const touch = e.touches[0];
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  selectionCurrentX = Math.max(0, Math.min(touch.clientX - containerRect.left, containerRect.width));
+  selectionCurrentY = Math.max(0, Math.min(touch.clientY - containerRect.top, containerRect.height));
+  
+  calculateSelectionRect();
+  updateSelectionBoxDisplay();
+}
+
+function calculateSelectionRect() {
+  // Calculate the correct rectangle coordinates from start and current points
+  selectionRect = {
+    left: Math.min(selectionStartX, selectionCurrentX),
+    top: Math.min(selectionStartY, selectionCurrentY),
+    width: Math.abs(selectionCurrentX - selectionStartX),
+    height: Math.abs(selectionCurrentY - selectionStartY)
+  };
+  
+  // Make sure selection is within container bounds
+  const containerRect = magnifiedContainer.getBoundingClientRect();
+  selectionRect.left = Math.max(0, Math.min(selectionRect.left, containerRect.width - 10));
+  selectionRect.top = Math.max(0, Math.min(selectionRect.top, containerRect.height - 10));
+  selectionRect.width = Math.min(selectionRect.width, containerRect.width - selectionRect.left);
+  selectionRect.height = Math.min(selectionRect.height, containerRect.height - selectionRect.top);
+}
+
+function updateSelectionBoxDisplay() {
+  selectionBox.style.left = selectionRect.left + 'px';
+  selectionBox.style.top = selectionRect.top + 'px';
+  selectionBox.style.width = selectionRect.width + 'px';
+  selectionBox.style.height = selectionRect.height + 'px';
+  selectionBox.style.display = 'block';
+  
+  // Only mark selection as active if it has a meaningful size
+  selectionActive = (selectionRect.width > 5 && selectionRect.height > 5);
+}
+
+function finishSelection(e) {
+  if (!isSelecting) return;
+  
+  isSelecting = false;
+  
+  // Remove the temporary event listeners
+  document.removeEventListener('mousemove', updateSelection);
+  document.removeEventListener('mouseup', finishSelection);
+  document.removeEventListener('touchmove', updateSelectionTouch);
+  document.removeEventListener('touchend', finishSelection);
+  
+  // Hide selection box if it's too small
+  if (!selectionActive) {
+    selectionBox.style.display = 'none';
   }
 }
 
-function showError(message) {
-  errorMessage.textContent = message;
-  errorMessage.style.display = 'block';
-}
-
-function setupMagnifier(imageUrl) {
-  uploadSection.style.display = 'none';
-  magnifierSection.style.display = 'block';
-
-  currentScale = 1.0;
-  intensitySlider.value = 1;
-  intensityValue.textContent = '1';
-  zoomInfo.textContent = 'Current zoom: 1.0x';
-
-  selectionBox.style.display = 'none';
-  selectionModeCheckbox.checked = false;
-  selectionActive = false;
-
-  croppedTab.style.display = 'none';
-  tabs[0].classList.add('active');
-  tabs[0].setAttribute('aria-selected', 'true');
-  tabs[0].setAttribute('tabindex', '0');
-  tabs[1].classList.remove('active');
-  tabs[1].setAttribute('aria-selected', 'false');
-  tabs[1].setAttribute('tabindex', '-1');
-  tabContents[0].classList.add('active');
-  tabContents[1].classList.remove('active');
-
-  const img = new Image();
-  img.onload = function() {
-    originalImageWidth = this.width;
-    originalImageHeight = this.height;
-    
-    // Center the image initially
-    magnifiedImage.src = imageUrl;
-    magnifiedImage.style.width = 'auto';
-    magnifiedImage.style.height = 'auto';
-    magnifiedImage.style.maxWidth = '100%';
-    magnifiedImage.style.maxHeight = '100%';
-    
-    // Center the image after it loads
-    magnifiedImage.onload = function() {
-      const containerWidth = magnifiedContainer.clientWidth;
-      const containerHeight = magnifiedContainer.clientHeight;
-      const imgWidth = magnifiedImage.clientWidth;
-      const imgHeight = magnifiedImage.clientHeight;
-      
-      // Calculate the position to center the image
-      const leftPos = (containerWidth - imgWidth) / 2;
-      const topPos = (containerHeight - imgHeight) / 2;
-      
-      magnifiedImage.style.left = leftPos + 'px';
-      magnifiedImage.style.top = topPos + 'px';
-      magnifiedImage.style.transform = 'scale(1)';
-    };
-    
-    applyGrayscale();
-    setupDragging();
-    setupResizeHandles();
-  };
-  img.onerror = function() {
-    showError("Failed to load the image. Please try another file.");
-    uploadSection.style.display = 'block';
-    magnifierSection.style.display = 'none';
-  };
-  img.src = imageUrl;
-}
-
-function setupDragging() {
-  magnifiedContainer.addEventListener('mousedown', startDragging);
-  document.addEventListener('mousemove', dragImage);
-  document.addEventListener('mouseup', stopDragging);
-
-  magnifiedContainer.addEventListener('touchstart', startDraggingTouch, {passive:false});
-  document.addEventListener('touchmove', dragImageTouch, {passive:false});
-  document.addEventListener('touchend', stopDragging);
-
-  const croppedContainer = document.querySelector('#cropped-tab-content #magnified-image-container');
-  croppedContainer.addEventListener('mousedown', startCroppedDragging);
-  document.addEventListener('mousemove', dragCroppedImage);
-  document.addEventListener('mouseup', stopCroppedDragging);
-
-  croppedContainer.addEventListener('touchstart', startCroppedDraggingTouch, {passive:false});
-  document.addEventListener('touchmove', dragCroppedImageTouch, {passive:false});
-  document.addEventListener('touchend', stopCroppedDragging);
-}
-
-function setupResizeHandles() {
-  // Setup events for each resize handle
-  resizeHandles.forEach(handle => {
-    handle.addEventListener('mousedown', startResizing);
-    handle.addEventListener('touchstart', startResizingTouch, {passive: false});
-  });
-  
-  document.addEventListener('mousemove', resizeSelection);
-  document.addEventListener('touchmove', resizeSelectionTouch, {passive: false});
-  document.addEventListener('mouseup', stopResizing);
-  document.addEventListener('touchend', stopResizing);
-}
-
+// Improved resize handling functions
 function startResizing(e) {
+  if (!selectionModeCheckbox.checked || !selectionActive) return;
+  
   e.preventDefault();
   e.stopPropagation();
-  if (!selectionModeCheckbox.checked) return;
   
   isResizing = true;
+  isDragging = false; // Prevent dragging while resizing
   currentResizeHandle = e.target.getAttribute('data-handle');
   
   // Get the initial box dimensions
@@ -678,15 +659,20 @@ function startResizing(e) {
   // Get the starting mouse position
   startX = e.clientX;
   startY = e.clientY;
+  
+  // Add temporary event listeners
+  document.addEventListener('mousemove', resizeSelection);
+  document.addEventListener('mouseup', stopResizing);
 }
 
 function startResizingTouch(e) {
-  if (!selectionModeCheckbox.checked || e.touches.length !== 1) return;
+  if (!selectionModeCheckbox.checked || !selectionActive || e.touches.length !== 1) return;
   
   e.preventDefault();
   e.stopPropagation();
   
   isResizing = true;
+  isDragging = false; // Prevent dragging while resizing
   currentResizeHandle = e.target.getAttribute('data-handle');
   
   // Get the initial box dimensions
@@ -699,11 +685,17 @@ function startResizingTouch(e) {
   const touch = e.touches[0];
   startX = touch.clientX;
   startY = touch.clientY;
+  
+  // Add temporary event listeners
+  document.addEventListener('touchmove', resizeSelectionTouch, { passive: false });
+  document.addEventListener('touchend', stopResizing);
 }
 
 function resizeSelection(e) {
   if (!isResizing) return;
+  
   e.preventDefault();
+  e.stopPropagation();
   
   const dx = e.clientX - startX;
   const dy = e.clientY - startY;
@@ -714,7 +706,9 @@ function resizeSelection(e) {
 
 function resizeSelectionTouch(e) {
   if (!isResizing || e.touches.length !== 1) return;
+  
   e.preventDefault();
+  e.stopPropagation();
   
   const touch = e.touches[0];
   const dx = touch.clientX - startX;
@@ -735,17 +729,17 @@ function applyResize(dx, dy) {
   // Handle the resize based on which handle is being dragged
   switch(currentResizeHandle) {
     case 'nw': // Northwest
-      newLeft = Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10);
-      newTop = Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10);
+      newLeft = Math.max(0, Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10));
+      newTop = Math.max(0, Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10));
       newWidth = Math.max(10, initialBoxWidth - dx);
       newHeight = Math.max(10, initialBoxHeight - dy);
       break;
     case 'n': // North
-      newTop = Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10);
+      newTop = Math.max(0, Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10));
       newHeight = Math.max(10, initialBoxHeight - dy);
       break;
     case 'ne': // Northeast
-      newTop = Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10);
+      newTop = Math.max(0, Math.min(initialBoxTop + dy, initialBoxTop + initialBoxHeight - 10));
       newWidth = Math.max(10, initialBoxWidth + dx);
       newHeight = Math.max(10, initialBoxHeight - dy);
       break;
@@ -760,41 +754,201 @@ function applyResize(dx, dy) {
       newHeight = Math.max(10, initialBoxHeight + dy);
       break;
     case 'sw': // Southwest
-      newLeft = Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10);
+      newLeft = Math.max(0, Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10));
       newWidth = Math.max(10, initialBoxWidth - dx);
       newHeight = Math.max(10, initialBoxHeight + dy);
       break;
     case 'w': // West
-      newLeft = Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10);
+      newLeft = Math.max(0, Math.min(initialBoxLeft + dx, initialBoxLeft + initialBoxWidth - 10));
       newWidth = Math.max(10, initialBoxWidth - dx);
       break;
   }
   
   // Constrain to container bounds
-  newLeft = Math.max(0, Math.min(newLeft, containerRect.width - newWidth));
-  newTop = Math.max(0, Math.min(newTop, containerRect.height - newHeight));
+  newLeft = Math.max(0, Math.min(newLeft, containerRect.width - 10));
+  newTop = Math.max(0, Math.min(newTop, containerRect.height - 10));
+  newWidth = Math.max(10, Math.min(newWidth, containerRect.width - newLeft));
+  newHeight = Math.max(10, Math.min(newHeight, containerRect.height - newTop));
+  
+  // Update selection rectangle
+  selectionRect = {
+    left: newLeft,
+    top: newTop,
+    width: newWidth,
+    height: newHeight
+  };
   
   // Apply new dimensions
-  selectionBox.style.left = newLeft + 'px';
-  selectionBox.style.top = newTop + 'px';
-  selectionBox.style.width = newWidth + 'px';
-  selectionBox.style.height = newHeight + 'px';
+  updateSelectionBoxDisplay();
 }
 
 function stopResizing() {
+  if (!isResizing) return;
+  
   isResizing = false;
   currentResizeHandle = null;
+  
+  // Remove temporary event listeners
+  document.removeEventListener('mousemove', resizeSelection);
+  document.removeEventListener('mouseup', stopResizing);
+  document.removeEventListener('touchmove', resizeSelectionTouch);
+  document.removeEventListener('touchend', stopResizing);
 }
 
+// Improved crop function
+processBtn.addEventListener('click', function() {
+  if (!selectionActive) {
+    alert('Please make a selection first');
+    return;
+  }
+  
+  loadingIndicator.style.display = 'block';
+  
+  setTimeout(() => {
+    // Get selection box coordinates
+    const selLeft = selectionRect.left;
+    const selTop = selectionRect.top;
+    const selWidth = selectionRect.width;
+    const selHeight = selectionRect.height;
+    
+    // Calculate original image position and dimensions
+    const imgRect = magnifiedImage.getBoundingClientRect();
+    const imgLeft = parseInt(magnifiedImage.style.left) || 0;
+    const imgTop = parseInt(magnifiedImage.style.top) || 0;
+    const imgWidth = magnifiedImage.naturalWidth;
+    const imgHeight = magnifiedImage.naturalHeight;
+    
+    // Account for the current scale/zoom level
+    const scaledImgWidth = imgRect.width / currentScale;
+    const scaledImgHeight = imgRect.height / currentScale;
+    
+    // Calculate the selection in terms of the original image
+    const cropX = (selLeft - imgLeft) / currentScale;
+    const cropY = (selTop - imgTop) / currentScale;
+    const cropWidth = selWidth / currentScale;
+    const cropHeight = selHeight / currentScale;
+    
+    // Ensure crop dimensions are valid
+    if (cropX < 0 || cropY < 0 || cropWidth <= 0 || cropHeight <= 0 || 
+        cropX + cropWidth > imgWidth || cropY + cropHeight > imgHeight) {
+      console.warn("Crop dimensions invalid, adjusting...");
+      // Adjust crop dimensions to valid values
+      const validCropX = Math.max(0, Math.min(cropX, imgWidth - 1));
+      const validCropY = Math.max(0, Math.min(cropY, imgHeight - 1));
+      const validCropWidth = Math.max(1, Math.min(cropWidth, imgWidth - validCropX));
+      const validCropHeight = Math.max(1, Math.min(cropHeight, imgHeight - validCropY));
+      
+      // Create a canvas to crop the image
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas dimensions to cropped size
+      canvas.width = validCropWidth;
+      canvas.height = validCropHeight;
+      
+      // Create an image to draw from
+      const img = new Image();
+      img.onload = function() {
+        // Draw the cropped portion to the canvas
+        ctx.drawImage(
+          img,
+          validCropX, validCropY, validCropWidth, validCropHeight,
+          0, 0, validCropWidth, validCropHeight
+        );
+        
+        // Convert canvas to data URL
+        croppedImageData = canvas.toDataURL('image/png');
+        setupCroppedView();
+      };
+      img.onerror = handleCropError;
+      img.src = imageData;
+    } else {
+      // Create a canvas to crop the image
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas dimensions to cropped size
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+      
+      // Create an image to draw from
+      const img = new Image();
+      img.onload = function() {
+        // Draw the cropped portion to the canvas
+        ctx.drawImage(
+          img,
+          cropX, cropY, cropWidth, cropHeight,
+          0, 0, cropWidth, cropHeight
+        );
+        
+        // Convert canvas to data URL
+        croppedImageData = canvas.toDataURL('image/png');
+        setupCroppedView();
+      };
+      img.onerror = handleCropError;
+      img.src = imageData;
+    }
+  }, 100);
+  
+  function handleCropError() {
+    alert('Error cropping image. Please try again.');
+    loadingIndicator.style.display = 'none';
+  }
+  
+  function setupCroppedView() {
+    // Setup cropped image view
+    croppedImage.src = croppedImageData;
+    croppedImage.style.width = 'auto';
+    croppedImage.style.height = 'auto';
+    croppedImage.style.maxWidth = '100%';
+    croppedImage.style.maxHeight = '100%';
+    
+    // Center the cropped image after it loads
+    croppedImage.onload = function() {
+      const containerWidth = document.querySelector('#cropped-tab-content #magnified-image-container').clientWidth;
+      const containerHeight = document.querySelector('#cropped-tab-content #magnified-image-container').clientHeight;
+      const imgWidth = croppedImage.clientWidth;
+      const imgHeight = croppedImage.clientHeight;
+      
+      // Calculate the position to center the image
+      const leftPos = (containerWidth - imgWidth) / 2;
+      const topPos = (containerHeight - imgHeight) / 2;
+      
+      croppedImage.style.left = leftPos + 'px';
+      croppedImage.style.top = topPos + 'px';
+      croppedImage.style.transform = 'scale(1)';
+      
+      // Update cropped image width and height variables
+      croppedImageWidth = imgWidth;
+      croppedImageHeight = imgHeight;
+      
+      // Reset cropped view controls
+      croppedIntensitySlider.value = 1;
+      croppedIntensityValue.textContent = '1';
+      croppedCurrentScale = 1.0;
+      croppedZoomInfo.textContent = 'Current zoom: 1.0x';
+      croppedGrayscaleCheckbox.checked = grayscaleCheckbox.checked;
+      applyGrayscaleCropped();
+      
+      // Show cropped tab
+      croppedTab.style.display = 'block';
+      croppedTab.click();
+      
+      loadingIndicator.style.display = 'none';
+    };
+  }
+});
+
+// Improved drag functions for better interaction with selection
 function startDragging(e) {
-  // Don't start dragging if we're in selection mode or resizing
-  if (selectionModeCheckbox.checked || isResizing) return;
+  // Don't start dragging if we're in selection mode or currently selecting/resizing
+  if (selectionModeCheckbox.checked || isSelecting || isResizing) return;
   
   e.preventDefault();
   isDragging = true;
 
-  startX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-  startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+  startX = e.clientX;
+  startY = e.clientY;
 
   startLeft = parseInt(magnifiedImage.style.left) || 0;
   startTop = parseInt(magnifiedImage.style.top) || 0;
@@ -803,41 +957,37 @@ function startDragging(e) {
   magnifiedImage.style.cursor = 'grabbing';
 }
 
-function startDraggingTouch(e) {
-  // Don't handle if multiple touches or if we're in selection mode
-  if (e.touches.length !== 1 || selectionModeCheckbox.checked || isResizing) return;
-  
-  e.preventDefault();
-  isDragging = true;
-  
-  const touch = e.touches[0];
-  startX = touch.clientX;
-  startY = touch.clientY;
-  
-  startLeft = parseInt(magnifiedImage.style.left) || 0;
-  startTop = parseInt(magnifiedImage.style.top) || 0;
-}
-
-function dragImage(e) {
-  if (!isDragging) {
-    // Handle selection if in selection mode and left mouse button is pressed
-    if (selectionModeCheckbox.checked && e.buttons === 1) {
-      handleSelection(e);
+// Keyboard shortcut handler for selection
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    // Cancel selection or dragging
+    if (isSelecting || isResizing) {
+      stopResizing();
+      finishSelection();
+      isSelecting = false;
+      isResizing = false;
+      selectionBox.style.display = 'none';
+      selectionActive = false;
+    } else if (selectionActive && selectionModeCheckbox.checked) {
+      // Just clear the active selection but stay in selection mode
+      selectionBox.style.display = 'none';
+      selectionActive = false;
+    } else if (selectionModeCheckbox.checked) {
+      // Exit selection mode
+      selectionModeCheckbox.checked = false;
+      selectionBox.style.display = 'none';
+      selectionActive = false;
+      magnifiedImage.style.cursor = 'grab';
+      magnifiedContainer.style.cursor = 'default';
     }
-    return;
+  } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    // Clear selection if active
+    if (selectionActive && selectionModeCheckbox.checked) {
+      selectionBox.style.display = 'none';
+      selectionActive = false;
+    }
   }
-  
-  e.preventDefault();
-  const x = e.clientX;
-  const y = e.clientY;
-  
-  const newLeft = startLeft + (x - startX);
-  const newTop = startTop + (y - startY);
-  
-  magnifiedImage.style.left = newLeft + 'px';
-  magnifiedImage.style.top = newTop + 'px';
-}
-
+});
 function dragImageTouch(e) {
   if (!isDragging || e.touches.length !== 1) return;
   
