@@ -1,8 +1,10 @@
 import os
 import base64
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
+from flask_cors import CORS  # Added for cross-origin support
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
 CSS_STYLE = """
@@ -307,6 +309,12 @@ img:hover {
 .tab-content.active {
   display: block;
 }
+#error-message {
+  color: #ea4335;
+  font-weight: bold;
+  margin: 10px 0;
+  display: none;
+}
 @media (max-width: 600px) {
   .container {
     padding: 20px;
@@ -340,6 +348,7 @@ INDEX_HTML = """
       <p>Click to select or drag and drop an image</p>
     </div>
     <input type="file" id="file-input" name="image" accept="image/*" />
+    <div id="error-message"></div>
   </div>
 
   <div id="magnifier-section" style="display:none;">
@@ -424,6 +433,7 @@ const magnifierSection = document.getElementById('magnifier-section');
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
 const croppedTab = document.getElementById('cropped-tab');
+const errorMessage = document.getElementById('error-message');
 
 const intensitySlider = document.getElementById('intensity');
 const intensityValue = document.getElementById('intensity-value');
@@ -533,16 +543,27 @@ fileInput.addEventListener('change', e => {
 });
 
 function handleFiles(files) {
+  errorMessage.style.display = 'none';
+  errorMessage.textContent = '';
+  
   if (files[0].type.startsWith('image/')) {
     const reader = new FileReader();
     reader.onload = function(e) {
       imageData = e.target.result;
       setupMagnifier(imageData);
     };
+    reader.onerror = function() {
+      showError("Failed to read the image file. Please try again.");
+    };
     reader.readAsDataURL(files[0]);
   } else {
-    alert('Please select an image file.');
+    showError("Please select a valid image file.");
   }
+}
+
+function showError(message) {
+  errorMessage.textContent = message;
+  errorMessage.style.display = 'block';
 }
 
 function setupMagnifier(imageUrl) {
@@ -599,6 +620,11 @@ function setupMagnifier(imageUrl) {
     applyGrayscale();
     setupDragging();
     setupResizeHandles();
+  };
+  img.onerror = function() {
+    showError("Failed to load the image. Please try another file.");
+    uploadSection.style.display = 'block';
+    magnifierSection.style.display = 'none';
   };
   img.src = imageUrl;
 }
@@ -771,556 +797,4 @@ function startDragging(e) {
   startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
 
   startLeft = parseInt(magnifiedImage.style.left) || 0;
-  startTop = parseInt(magnifiedImage.style.top) || 0;
-}
-
-function startDraggingTouch(e) {
-  // Don't start dragging if we're in selection mode or resizing
-  if (selectionModeCheckbox.checked || isResizing) return;
-  
-  if (e.touches.length === 1) {
-    e.preventDefault();
-    isDragging = true;
-
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-
-    startLeft = parseInt(magnifiedImage.style.left) || 0;
-    startTop = parseInt(magnifiedImage.style.top) || 0;
-  }
-}
-
-function dragImage(e) {
-  if (!isDragging) return;
-  e.preventDefault();
-
-  const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-  const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-
-  const dx = clientX - startX;
-  const dy = clientY - startY;
-
-  const newLeft = startLeft + dx;
-  const newTop = startTop + dy;
-
-  magnifiedImage.style.left = newLeft + 'px';
-  magnifiedImage.style.top = newTop + 'px';
-}
-
-function dragImageTouch(e) {
-  if (!isDragging || e.touches.length !== 1) return;
-  e.preventDefault();
-
-  const touch = e.touches[0];
-  const dx = touch.clientX - startX;
-  const dy = touch.clientY - startY;
-
-  const newLeft = startLeft + dx;
-  const newTop = startTop + dy;
-
-  magnifiedImage.style.left = newLeft + 'px';
-  magnifiedImage.style.top = newTop + 'px';
-}
-
-function stopDragging() {
-  isDragging = false;
-}
-
-function startCroppedDragging(e) {
-  e.preventDefault();
-  isDragging = true;
-
-  startX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-  startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-
-  startLeft = parseInt(croppedImage.style.left) || 0;
-  startTop = parseInt(croppedImage.style.top) || 0;
-}
-
-function startCroppedDraggingTouch(e) {
-  if (e.touches.length === 1) {
-    e.preventDefault();
-    isDragging = true;
-
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-
-    startLeft = parseInt(croppedImage.style.left) || 0;
-    startTop = parseInt(croppedImage.style.top) || 0;
-  }
-}
-
-function dragCroppedImage(e) {
-  if (!isDragging) return;
-  e.preventDefault();
-
-  const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-  const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-
-  const dx = clientX - startX;
-  const dy = clientY - startY;
-
-  const newLeft = startLeft + dx;
-  const newTop = startTop + dy;
-
-  croppedImage.style.left = newLeft + 'px';
-  croppedImage.style.top = newTop + 'px';
-}
-
-function dragCroppedImageTouch(e) {
-  if (!isDragging || e.touches.length !== 1) return;
-  e.preventDefault();
-
-  const touch = e.touches[0];
-  const dx = touch.clientX - startX;
-  const dy = touch.clientY - startY;
-
-  const newLeft = startLeft + dx;
-  const newTop = startTop + dy;
-
-  croppedImage.style.left = newLeft + 'px';
-  croppedImage.style.top = newTop + 'px';
-}
-
-function stopCroppedDragging() {
-  isDragging = false;
-}
-
-// Initialize listener for selection mode checkbox
-selectionModeCheckbox.addEventListener('change', function() {
-  if (this.checked) {
-    // Enable selection mode
-    magnifiedContainer.style.cursor = 'crosshair';
-    magnifiedContainer.addEventListener('mousedown', startSelection);
-    magnifiedContainer.addEventListener('touchstart', startSelectionTouch, {passive: false});
-    magnifiedContainer.addEventListener('mousemove', updateSelection);
-    magnifiedContainer.addEventListener('touchmove', updateSelectionTouch, {passive: false});
-    magnifiedContainer.addEventListener('mouseup', endSelection);
-    magnifiedContainer.addEventListener('touchend', endSelection);
-  } else {
-    // Disable selection mode
-    magnifiedContainer.style.cursor = 'grab';
-    magnifiedContainer.removeEventListener('mousedown', startSelection);
-    magnifiedContainer.removeEventListener('touchstart', startSelectionTouch);
-    magnifiedContainer.removeEventListener('mousemove', updateSelection);
-    magnifiedContainer.removeEventListener('touchmove', updateSelectionTouch);
-    magnifiedContainer.removeEventListener('mouseup', endSelection);
-    magnifiedContainer.removeEventListener('touchend', endSelection);
-    
-    // Hide selection box
-    selectionBox.style.display = 'none';
-    selectionActive = false;
-  }
-});
-
-function startSelection(e) {
-  // Don't start selecting if we're already resizing
-  if (isResizing) return;
-  
-  // Get mouse position relative to container
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  const mouseX = e.clientX - containerRect.left;
-  const mouseY = e.clientY - containerRect.top;
-
-  // Start selection
-  isSelecting = true;
-  selectionStartX = mouseX;
-  selectionStartY = mouseY;
-  selectionCurrentX = mouseX;
-  selectionCurrentY = mouseY;
-
-  // Set up selection box
-  selectionBox.style.left = selectionStartX + 'px';
-  selectionBox.style.top = selectionStartY + 'px';
-  selectionBox.style.width = '0';
-  selectionBox.style.height = '0';
-  selectionBox.style.display = 'block';
-}
-
-function startSelectionTouch(e) {
-  // Don't start selecting if we're already resizing or if there are multiple touches
-  if (isResizing || e.touches.length !== 1) return;
-  e.preventDefault();
-  
-  // Get touch position relative to container
-  const touch = e.touches[0];
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  const touchX = touch.clientX - containerRect.left;
-  const touchY = touch.clientY - containerRect.top;
-
-  // Start selection
-  isSelecting = true;
-  selectionStartX = touchX;
-  selectionStartY = touchY;
-  selectionCurrentX = touchX;
-  selectionCurrentY = touchY;
-
-  // Set up selection box
-  selectionBox.style.left = selectionStartX + 'px';
-  selectionBox.style.top = selectionStartY + 'px';
-  selectionBox.style.width = '0';
-  selectionBox.style.height = '0';
-  selectionBox.style.display = 'block';
-}
-
-function updateSelection(e) {
-  if (!isSelecting || isResizing) return;
-  
-  // Get current mouse position relative to container
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  const mouseX = e.clientX - containerRect.left;
-  const mouseY = e.clientY - containerRect.top;
-  
-  // Update current selection
-  selectionCurrentX = mouseX;
-  selectionCurrentY = mouseY;
-  
-  // Calculate selection box dimensions
-  updateSelectionBox();
-}
-
-function updateSelectionTouch(e) {
-  if (!isSelecting || isResizing || e.touches.length !== 1) return;
-  e.preventDefault();
-  
-  // Get current touch position relative to container
-  const touch = e.touches[0];
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  const touchX = touch.clientX - containerRect.left;
-  const touchY = touch.clientY - containerRect.top;
-  
-  // Update current selection
-  selectionCurrentX = touchX;
-  selectionCurrentY = touchY;
-  
-  // Calculate selection box dimensions
-  updateSelectionBox();
-}
-
-function updateSelectionBox() {
-  // Calculate top-left corner and dimensions
-  const left = Math.min(selectionStartX, selectionCurrentX);
-  const top = Math.min(selectionStartY, selectionCurrentY);
-  const width = Math.abs(selectionCurrentX - selectionStartX);
-  const height = Math.abs(selectionCurrentY - selectionStartY);
-  
-  // Update selection box
-  selectionBox.style.left = left + 'px';
-  selectionBox.style.top = top + 'px';
-  selectionBox.style.width = width + 'px';
-  selectionBox.style.height = height + 'px';
-}
-
-function endSelection() {
-  if (!isSelecting) return;
-  isSelecting = false;
-  
-  // Check if selection has a valid size
-  const width = parseInt(selectionBox.style.width);
-  const height = parseInt(selectionBox.style.height);
-  
-  if (width < 10 || height < 10) {
-    // Selection too small, hide the box
-    selectionBox.style.display = 'none';
-    selectionActive = false;
-  } else {
-    selectionActive = true;
-  }
-}
-
-intensitySlider.addEventListener('input', function() {
-  currentScale = parseFloat(this.value);
-  intensityValue.textContent = this.value;
-  zoomInfo.textContent = `Current zoom: ${this.value}x`;
-  
-  // Update original image scale
-  magnifiedImage.style.transform = `scale(${currentScale})`;
-});
-
-croppedIntensitySlider.addEventListener('input', function() {
-  croppedCurrentScale = parseFloat(this.value);
-  croppedIntensityValue.textContent = this.value;
-  croppedZoomInfo.textContent = `Current zoom: ${this.value}x`;
-  
-  // Update cropped image scale
-  croppedImage.style.transform = `scale(${croppedCurrentScale})`;
-});
-
-function applyGrayscale() {
-  if (grayscaleCheckbox.checked) {
-    magnifiedImage.style.filter = 'grayscale(100%)';
-  } else {
-    magnifiedImage.style.filter = 'none';
-  }
-}
-
-function applyCroppedGrayscale() {
-  if (croppedGrayscaleCheckbox.checked) {
-    croppedImage.style.filter = 'grayscale(100%)';
-  } else {
-    croppedImage.style.filter = 'none';
-  }
-}
-
-grayscaleCheckbox.addEventListener('change', applyGrayscale);
-croppedGrayscaleCheckbox.addEventListener('change', applyCroppedGrayscale);
-
-processBtn.addEventListener('click', function() {
-  if (!selectionActive) {
-    alert('Please make a selection first.');
-    return;
-  }
-  
-  // Show loading indicator
-  loadingIndicator.style.display = 'block';
-  
-  // Get selection dimensions
-  const selectionLeft = parseInt(selectionBox.style.left);
-  const selectionTop = parseInt(selectionBox.style.top);
-  const selectionWidth = parseInt(selectionBox.style.width);
-  const selectionHeight = parseInt(selectionBox.style.height);
-  
-  // Get the actual coordinates in the original image
-  const imgRect = magnifiedImage.getBoundingClientRect();
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  
-  // Calculate position and dimensions relative to the actual image
-  const imageLeft = parseInt(magnifiedImage.style.left);
-  const imageTop = parseInt(magnifiedImage.style.top);
-  
-  // Calculate the actual coordinates in the original image (accounting for scaling)
-  const actualX = (selectionLeft - imageLeft) / currentScale;
-  const actualY = (selectionTop - imageTop) / currentScale;
-  const actualWidth = selectionWidth / currentScale;
-  const actualHeight = selectionHeight / currentScale;
-  
-  // Create form data for the server request
-  const formData = new FormData();
-  formData.append('image_data', imageData);
-  formData.append('x', Math.round(actualX));
-  formData.append('y', Math.round(actualY));
-  formData.append('width', Math.round(actualWidth));
-  formData.append('height', Math.round(actualHeight));
-  
-  // Send the request to crop the image
-  fetch('/crop', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      // Store the cropped image data and setup the cropped tab
-      croppedImageData = data.cropped_image;
-      setupCroppedImage(data.cropped_image);
-      
-      // Switch to the cropped tab
-      croppedTab.style.display = 'block';
-      croppedTab.click();
-    } else {
-      alert('Error cropping image: ' + data.error);
-    }
-    loadingIndicator.style.display = 'none';
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    alert('Error processing image. Please try again.');
-    loadingIndicator.style.display = 'none';
-  });
-});
-
-function setupCroppedImage(imageUrl) {
-  // Reset controls
-  croppedCurrentScale = 1.0;
-  croppedIntensitySlider.value = 1;
-  croppedIntensityValue.textContent = '1';
-  croppedZoomInfo.textContent = 'Current zoom: 1.0x';
-  croppedGrayscaleCheckbox.checked = false;
-  
-  // Load the image dimensions
-  const img = new Image();
-  img.onload = function() {
-    croppedImageWidth = this.width;
-    croppedImageHeight = this.height;
-    
-    // Set up the cropped image
-    croppedImage.src = imageUrl;
-    croppedImage.style.width = 'auto';
-    croppedImage.style.height = 'auto';
-    croppedImage.style.maxWidth = '100%';
-    croppedImage.style.maxHeight = '100%';
-    croppedImage.style.filter = 'none';
-    
-    // Center the image after it loads
-    croppedImage.onload = function() {
-      const containerWidth = document.querySelector('#cropped-tab-content #magnified-image-container').clientWidth;
-      const containerHeight = document.querySelector('#cropped-tab-content #magnified-image-container').clientHeight;
-      const imgWidth = croppedImage.clientWidth;
-      const imgHeight = croppedImage.clientHeight;
-      
-      // Calculate the position to center the image
-      const leftPos = (containerWidth - imgWidth) / 2;
-      const topPos = (containerHeight - imgHeight) / 2;
-      
-      croppedImage.style.left = leftPos + 'px';
-      croppedImage.style.top = topPos + 'px';
-      croppedImage.style.transform = 'scale(1)';
-    };
-  };
-  img.src = imageUrl;
-}
-
-downloadBtn.addEventListener('click', function() {
-  // Create a temporary link to download the image
-  const link = document.createElement('a');
-  
-  // Create a canvas to apply current zoom and filters
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  // Create a new image for processing
-  const img = new Image();
-  img.onload = function() {
-    // Set canvas dimensions to match the zoomed image
-    canvas.width = img.width * currentScale;
-    canvas.height = img.height * currentScale;
-    
-    // Draw the image with the current scale
-    ctx.scale(currentScale, currentScale);
-    ctx.drawImage(img, 0, 0);
-    
-    // Apply grayscale if needed
-    if (grayscaleCheckbox.checked) {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        data[i] = avg;
-        data[i + 1] = avg;
-        data[i + 2] = avg;
-      }
-      ctx.putImageData(imageData, 0, 0);
-    }
-    
-    // Generate download link
-    link.href = canvas.toDataURL('image/png');
-    link.download = 'magnified_image.png';
-    link.click();
-  };
-  img.src = imageData;
-});
-
-croppedDownloadBtn.addEventListener('click', function() {
-  // Create a temporary link to download the image
-  const link = document.createElement('a');
-  
-  // Create a canvas to apply current zoom and filters
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  // Create a new image for processing
-  const img = new Image();
-  img.onload = function() {
-    // Set canvas dimensions to match the zoomed image
-    canvas.width = img.width * croppedCurrentScale;
-    canvas.height = img.height * croppedCurrentScale;
-    
-    // Draw the image with the current scale
-    ctx.scale(croppedCurrentScale, croppedCurrentScale);
-    ctx.drawImage(img, 0, 0);
-    
-    // Apply grayscale if needed
-    if (croppedGrayscaleCheckbox.checked) {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        data[i] = avg;
-        data[i + 1] = avg;
-        data[i + 2] = avg;
-      }
-      ctx.putImageData(imageData, 0, 0);
-    }
-    
-    // Generate download link
-    link.href = canvas.toDataURL('image/png');
-    link.download = 'cropped_image.png';
-    link.click();
-  };
-  img.src = croppedImageData;
-});
-
-backToOriginalBtn.addEventListener('click', function() {
-  document.querySelector('.tab[data-tab="original"]').click();
-});
-
-newImageBtn.addEventListener('click', function() {
-  uploadSection.style.display = 'block';
-  magnifierSection.style.display = 'none';
-  fileInput.value = '';
-  croppedTab.style.display = 'none';
-});
-
-// Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
-  intensityValue.textContent = intensitySlider.value;
-  croppedIntensityValue.textContent = croppedIntensitySlider.value;
-});
-</script>
-</body>
-</html>
-"""
-
-@app.route('/')
-def index():
-    return render_template_string(INDEX_HTML, css=CSS_STYLE)
-
-@app.route('/crop', methods=['POST'])
-def crop_image():
-    try:
-        # Get the image data and crop coordinates
-        image_data = request.form.get('image_data')
-        x = int(request.form.get('x'))
-        y = int(request.form.get('y'))
-        width = int(request.form.get('width'))
-        height = int(request.form.get('height'))
-        
-        # Check if coordinates are valid
-        if width <= 0 or height <= 0:
-            return jsonify({'success': False, 'error': 'Invalid crop dimensions'})
-        
-        # Process the base64 image data
-        if image_data.startswith('data:image'):
-            # Extract the base64 part from data URL
-            image_data = image_data.split(',')[1]
-        
-        # Decode the base64 image
-        import io
-        from PIL import Image
-        
-        image_bytes = base64.b64decode(image_data)
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # Crop the image
-        cropped_image = image.crop((x, y, x + width, y + height))
-        
-        # Convert back to base64
-        buffer = io.BytesIO()
-        cropped_image.save(buffer, format="PNG")
-        img_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        
-        # Return the cropped image as a data URL
-        return jsonify({
-            'success': True,
-            'cropped_image': f'data:image/png;base64,{img_str}'
-        })
-    
-    except Exception as e:
-        import traceback
-        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()})
-
-if __name__ == '__main__':
-    # Use 0.0.0.0 to make it accessible from other machines on the network
-    app.run(host='0.0.0.0', port=5000, debug=True)
+  startTop = parseInt(magnifiedImage.style.top) ||
