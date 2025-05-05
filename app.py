@@ -922,6 +922,24 @@ function stopCroppedDragging() {
 }
 
 // Selection functions
+// First, modify the stopDragging function to preserve the selection when in selection mode
+function stopDragging() {
+  isDragging = false;
+  
+  // Don't reset isSelecting if we're in selection mode AND we've created a valid selection
+  if (!selectionModeCheckbox.checked || !selectionActive) {
+    isSelecting = false;
+  }
+  
+  magnifiedImage.style.cursor = 'grab';
+  
+  // If we're in selection mode, change cursor back to crosshair
+  if (selectionModeCheckbox.checked) {
+    magnifiedImage.style.cursor = 'crosshair';
+  }
+}
+
+// Then, modify the handleSelection function to better handle selection completion
 function handleSelection(e) {
   const containerRect = magnifiedContainer.getBoundingClientRect();
   const x = e.clientX - containerRect.left;
@@ -954,78 +972,43 @@ function handleSelection(e) {
     selectionBox.style.width = selWidth + 'px';
     selectionBox.style.height = selHeight + 'px';
     
-    selectionActive = true;
+    // Only mark selection as active if it has a meaningful size
+    if (selWidth > 5 && selHeight > 5) {
+      selectionActive = true;
+    }
   }
 }
 
-function handleSelectionTouch(e) {
-  if (e.touches.length !== 1) return;
-  
-  e.preventDefault();
-  const touch = e.touches[0];
-  const containerRect = magnifiedContainer.getBoundingClientRect();
-  const x = touch.clientX - containerRect.left;
-  const y = touch.clientY - containerRect.top;
-  
-  if (!isSelecting) {
-    // Start selection
-    isSelecting = true;
-    selectionStartX = x;
-    selectionStartY = y;
-    selectionBox.style.left = x + 'px';
-    selectionBox.style.top = y + 'px';
-    selectionBox.style.width = '0';
-    selectionBox.style.height = '0';
-    selectionBox.style.display = 'block';
-  } else {
-    // Update selection
-    selectionCurrentX = x;
-    selectionCurrentY = y;
-    
-    // Calculate top-left corner and dimensions
-    const selLeft = Math.min(selectionStartX, selectionCurrentX);
-    const selTop = Math.min(selectionStartY, selectionCurrentY);
-    const selWidth = Math.abs(selectionCurrentX - selectionStartX);
-    const selHeight = Math.abs(selectionCurrentY - selectionStartY);
-    
-    // Apply to selection box
-    selectionBox.style.left = selLeft + 'px';
-    selectionBox.style.top = selTop + 'px';
-    selectionBox.style.width = selWidth + 'px';
-    selectionBox.style.height = selHeight + 'px';
-    
-    selectionActive = true;
+// Update the mouseup event listener to finalize the selection
+magnifiedContainer.addEventListener('mouseup', function(e) {
+  if (selectionModeCheckbox.checked && isSelecting) {
+    // Finalize the selection but keep isSelecting true if we've made a valid selection
+    if (selectionActive) {
+      isSelecting = false;
+    }
   }
-}
+});
 
+// Also update the touchend event for touch devices
+magnifiedContainer.addEventListener('touchend', function(e) {
+  if (selectionModeCheckbox.checked && isSelecting) {
+    // Finalize the selection but keep isSelecting true if we've made a valid selection
+    if (selectionActive) {
+      isSelecting = false;
+    }
+  }
+});
+
+// Update the selectionModeCheckbox event listener to properly initialize/reset selection state
 selectionModeCheckbox.addEventListener('change', function() {
   if (this.checked) {
     // Enable selection mode
-    magnifiedContainer.addEventListener('mousedown', function(e) {
-      if (selectionModeCheckbox.checked && !isResizing) {
-        isSelecting = false;
-        handleSelection(e);
-      }
-    });
-    magnifiedContainer.addEventListener('mousemove', function(e) {
-      if (selectionModeCheckbox.checked && isSelecting && !isResizing) {
-        handleSelection(e);
-      }
-    });
-    magnifiedContainer.addEventListener('touchstart', function(e) {
-      if (selectionModeCheckbox.checked && !isResizing && e.touches.length === 1) {
-        isSelecting = false;
-        handleSelectionTouch(e);
-      }
-    }, {passive: false});
-    magnifiedContainer.addEventListener('touchmove', function(e) {
-      if (selectionModeCheckbox.checked && isSelecting && !isResizing && e.touches.length === 1) {
-        handleSelectionTouch(e);
-      }
-    }, {passive: false});
-    
     selectionBox.style.display = 'none';
+    selectionActive = false;
     magnifiedImage.style.cursor = 'crosshair';
+    
+    // These event listeners are already in your code, but make sure they're updated
+    // with the new handleSelection function
   } else {
     // Disable selection mode
     isSelecting = false;
@@ -1034,7 +1017,6 @@ selectionModeCheckbox.addEventListener('change', function() {
     magnifiedImage.style.cursor = 'grab';
   }
 });
-
 // Zoom functionality
 intensitySlider.addEventListener('input', function() {
   const value = parseFloat(this.value);
