@@ -263,7 +263,6 @@ img:hover {
   display: none;
 }
 #cropped-image-container {
-  display: none;
   margin-top: 30px;
 }
 #cropped-image {
@@ -434,7 +433,7 @@ INDEX_HTML = """
     // Variables for selection
     let isSelecting = false;
     let selectionStartX, selectionStartY;
-    let selectionLeft, selectionTop, selectionWidth, selectionHeight;
+    let selectionBox = document.getElementById('selection-box');
     let selectionActive = false;
     
     // Tab switching
@@ -552,18 +551,247 @@ INDEX_HTML = """
         
         // Apply grayscale if needed
         applyGrayscale();
+        
+        // Set up dragging
+        setupDragging();
       };
       img.src = imageUrl;
-      
-      // Add dragging functionality
+    }
+    
+    // Set up dragging functionality
+    function setupDragging() {
+      // Mouse events for dragging
       magnifiedContainer.addEventListener('mousedown', startDragging);
-      document.addEventListener('mousemove', drag);
+      document.addEventListener('mousemove', dragImage);
       document.addEventListener('mouseup', stopDragging);
       
-      // Add touch functionality
+      // Touch events for dragging
       magnifiedContainer.addEventListener('touchstart', startDraggingTouch);
-      document.addEventListener('touchmove', dragTouch);
+      document.addEventListener('touchmove', dragImageTouch);
       document.addEventListener('touchend', stopDragging);
+      
+      // Set up cropped image dragging
+      croppedContainer.addEventListener('mousedown', startCroppedDragging);
+      document.addEventListener('mousemove', dragCroppedImage);
+      document.addEventListener('mouseup', stopCroppedDragging);
+      
+      croppedContainer.addEventListener('touchstart', startCroppedDraggingTouch);
+      document.addEventListener('touchmove', dragCroppedImageTouch);
+      document.addEventListener('touchend', stopCroppedDragging);
+    }
+    
+    // Dragging functionality for original image
+    function startDragging(e) {
+      if (selectionModeCheckbox.checked) return; // Don't drag in selection mode
+      
+      e.preventDefault();
+      isDragging = true;
+      
+      // Get the current position of the image
+      const transform = window.getComputedStyle(magnifiedImage).getPropertyValue('transform');
+      const matrix = new DOMMatrix(transform);
+      
+      // Get the starting position of the mouse
+      startX = e.clientX;
+      startY = e.clientY;
+      
+      // Get the current left and top values (from transform matrix or from style)
+      startLeft = parseInt(magnifiedImage.style.left) || 0;
+      startTop = parseInt(magnifiedImage.style.top) || 0;
+    }
+    
+    function startDraggingTouch(e) {
+      if (selectionModeCheckbox.checked) return; // Don't drag in selection mode
+      
+      if (e.touches.length === 1) {
+        e.preventDefault();
+        isDragging = true;
+        
+        const touch = e.touches[0];
+        
+        // Get the starting position of the touch
+        startX = touch.clientX;
+        startY = touch.clientY;
+        
+        // Get the current left and top values
+        startLeft = parseInt(magnifiedImage.style.left) || 0;
+        startTop = parseInt(magnifiedImage.style.top) || 0;
+      }
+    }
+    
+    function dragImage(e) {
+      if (!isDragging) return;
+      
+      // Calculate the new position
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      
+      let newLeft = startLeft + dx;
+      let newTop = startTop + dy;
+      
+      // Calculate constraints to keep image within view
+      const containerWidth = magnifiedContainer.clientWidth;
+      const containerHeight = magnifiedContainer.clientHeight;
+      const imageWidth = originalImageWidth * currentScale;
+      const imageHeight = originalImageHeight * currentScale;
+      
+      // Set constraints so image doesn't go too far out of view
+      // Allow dragging as long as at least part of the image is visible
+      const minLeft = Math.min(0, containerWidth - imageWidth);
+      const maxLeft = 0;
+      const minTop = Math.min(0, containerHeight - imageHeight);
+      const maxTop = 0;
+      
+      // Apply constraints
+      newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+      newTop = Math.max(minTop, Math.min(maxTop, newTop));
+      
+      // Update image position
+      magnifiedImage.style.left = `${newLeft}px`;
+      magnifiedImage.style.top = `${newTop}px`;
+    }
+    
+    function dragImageTouch(e) {
+      if (!isDragging) return;
+      
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        
+        // Calculate the new position
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+        
+        let newLeft = startLeft + dx;
+        let newTop = startTop + dy;
+        
+        // Calculate constraints to keep image within view
+        const containerWidth = magnifiedContainer.clientWidth;
+        const containerHeight = magnifiedContainer.clientHeight;
+        const imageWidth = originalImageWidth * currentScale;
+        const imageHeight = originalImageHeight * currentScale;
+        
+        // Set constraints so image doesn't go too far out of view
+        const minLeft = Math.min(0, containerWidth - imageWidth);
+        const maxLeft = 0;
+        const minTop = Math.min(0, containerHeight - imageHeight);
+        const maxTop = 0;
+        
+        // Apply constraints
+        newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+        newTop = Math.max(minTop, Math.min(maxTop, newTop));
+        
+        // Update image position
+        magnifiedImage.style.left = `${newLeft}px`;
+        magnifiedImage.style.top = `${newTop}px`;
+      }
+    }
+    
+    function stopDragging() {
+      isDragging = false;
+    }
+    
+    // Dragging functionality for cropped image
+    let isCroppedDragging = false;
+    let croppedStartX, croppedStartY, croppedStartLeft, croppedStartTop;
+    
+    function startCroppedDragging(e) {
+      e.preventDefault();
+      isCroppedDragging = true;
+      
+      // Get the starting position of the mouse
+      croppedStartX = e.clientX;
+      croppedStartY = e.clientY;
+      
+      // Get the current left and top values
+      croppedStartLeft = parseInt(croppedImage.style.left) || 0;
+      croppedStartTop = parseInt(croppedImage.style.top) || 0;
+    }
+    
+    function startCroppedDraggingTouch(e) {
+      if (e.touches.length === 1) {
+        e.preventDefault();
+        isCroppedDragging = true;
+        
+        const touch = e.touches[0];
+        
+        // Get the starting position of the touch
+        croppedStartX = touch.clientX;
+        croppedStartY = touch.clientY;
+        
+        // Get the current left and top values
+        croppedStartLeft = parseInt(croppedImage.style.left) || 0;
+        croppedStartTop = parseInt(croppedImage.style.top) || 0;
+      }
+    }
+    
+    function dragCroppedImage(e) {
+      if (!isCroppedDragging) return;
+      
+      // Calculate the new position
+      const dx = e.clientX - croppedStartX;
+      const dy = e.clientY - croppedStartY;
+      
+      let newLeft = croppedStartLeft + dx;
+      let newTop = croppedStartTop + dy;
+      
+      // Calculate constraints to keep image within view
+      const containerWidth = croppedContainer.clientWidth;
+      const containerHeight = croppedContainer.clientHeight;
+      const imageWidth = croppedImageWidth * croppedCurrentScale;
+      const imageHeight = croppedImageHeight * croppedCurrentScale;
+      
+      // Set constraints so image doesn't go too far out of view
+      const minLeft = Math.min(0, containerWidth - imageWidth);
+      const maxLeft = 0;
+      const minTop = Math.min(0, containerHeight - imageHeight);
+      const maxTop = 0;
+      
+      // Apply constraints
+      newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+      newTop = Math.max(minTop, Math.min(maxTop, newTop));
+      
+      // Update image position
+      croppedImage.style.left = `${newLeft}px`;
+      croppedImage.style.top = `${newTop}px`;
+    }
+    
+    function dragCroppedImageTouch(e) {
+      if (!isCroppedDragging) return;
+      
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        
+        // Calculate the new position
+        const dx = touch.clientX - croppedStartX;
+        const dy = touch.clientY - croppedStartY;
+        
+        let newLeft = croppedStartLeft + dx;
+        let newTop = croppedStartTop + dy;
+        
+        // Calculate constraints to keep image within view
+        const containerWidth = croppedContainer.clientWidth;
+        const containerHeight = croppedContainer.clientHeight;
+        const imageWidth = croppedImageWidth * croppedCurrentScale;
+        const imageHeight = croppedImageHeight * croppedCurrentScale;
+        
+        // Set constraints so image doesn't go too far out of view
+        const minLeft = Math.min(0, containerWidth - imageWidth);
+        const maxLeft = 0;
+        const minTop = Math.min(0, containerHeight - imageHeight);
+        const maxTop = 0;
+        
+        // Apply constraints
+        newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+        newTop = Math.max(minTop, Math.min(maxTop, newTop));
+        
+        // Update image position
+        croppedImage.style.left = `${newLeft}px`;
+        croppedImage.style.top = `${newTop}px`;
+      }
+    }
+    
+    function stopCroppedDragging() {
+      isCroppedDragging = false;
     }
     
     // Setup Cropped Image
@@ -584,225 +812,3 @@ INDEX_HTML = """
         croppedImageHeight = this.height;
         
         // Set initial cropped image
-        croppedImage.src = imageUrl;
-        croppedImage.style.width = '100%';
-        croppedImage.style.height = 'auto';
-        croppedImage.style.top = '0';
-        croppedImage.style.left = '0';
-        croppedImage.style.transform = 'scale(1)';
-        
-        // Apply grayscale if needed
-        applyCroppedGrayscale();
-        
-        // Switch to cropped tab
-        croppedTab.click();
-      };
-      img.src = imageUrl;
-      croppedImageData = imageUrl;
-      
-      // Add dragging functionality for cropped image
-      croppedContainer.addEventListener('mousedown', startCroppedDragging);
-      document.addEventListener('mousemove', dragCropped);
-      document.addEventListener('mouseup', stopCroppedDragging);
-      
-      // Add touch functionality for cropped image
-      croppedContainer.addEventListener('touchstart', startCroppedDraggingTouch);
-      document.addEventListener('touchmove', dragCroppedTouch);
-      document.addEventListener('touchend', stopCroppedDragging);
-    }
-    
-    // Dragging functionality for original image
-    function startDragging(e) {
-      if (selectionModeCheckbox.checked) return;
-      e.preventDefault();
-      isDragging = true;
-      
-      startX = e.clientX;
-      startY = e.clientY;
-      
-      startLeft = parseInt(magnifiedImage.style.left) || 0;
-      startTop = parseInt(magnifiedImage.style.top) || 0;
-      
-      magnifiedImage.style.cursor = 'grabbing';
-    }
-    
-    function startDraggingTouch(e) {
-      if (selectionModeCheckbox.checked || e.touches.length !== 1) return;
-      e.preventDefault();
-      isDragging = true;
-      
-      const touch = e.touches[0];
-      startX = touch.clientX;
-      startY = touch.clientY;
-      
-      startLeft = parseInt(magnifiedImage.style.left) || 0;
-      startTop = parseInt(magnifiedImage.style.top) || 0;
-    }
-    
-    function drag(e) {
-      if (!isDragging) return;
-      
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      
-      const containerWidth = magnifiedContainer.clientWidth;
-      const containerHeight = magnifiedContainer.clientHeight;
-      
-      const scaledWidth = originalImageWidth * currentScale;
-      const scaledHeight = originalImageHeight * currentScale;
-      
-      let newLeft = startLeft + dx;
-      let newTop = startTop + dy;
-      
-      // Constrain movement to ensure image stays within view
-      newLeft = Math.min(0, Math.max(newLeft, containerWidth - scaledWidth));
-      newTop = Math.min(0, Math.max(newTop, containerHeight - scaledHeight));
-      
-      magnifiedImage.style.left = `${newLeft}px`;
-      magnifiedImage.style.top = `${newTop}px`;
-    }
-    
-    function dragTouch(e) {
-      if (!isDragging || e.touches.length !== 1) return;
-      
-      const touch = e.touches[0];
-      const dx = touch.clientX - startX;
-      const dy = touch.clientY - startY;
-      
-      const containerWidth = magnifiedContainer.clientWidth;
-      const containerHeight = magnifiedContainer.clientHeight;
-      
-      const scaledWidth = originalImageWidth * currentScale;
-      const scaledHeight = originalImageHeight * currentScale;
-      
-      let newLeft = startLeft + dx;
-      let newTop = startTop + dy;
-      
-      // Constrain movement to ensure image stays within view
-      newLeft = Math.min(0, Math.max(newLeft, containerWidth - scaledWidth));
-      newTop = Math.min(0, Math.max(newTop, containerHeight - scaledHeight));
-      
-      magnifiedImage.style.left = `${newLeft}px`;
-      magnifiedImage.style.top = `${newTop}px`;
-    }
-    
-    function stopDragging() {
-      isDragging = false;
-      magnifiedImage.style.cursor = 'move';
-    }
-    
-    // Dragging functionality for cropped image
-    function startCroppedDragging(e) {
-      e.preventDefault();
-      isDragging = true;
-      
-      startX = e.clientX;
-      startY = e.clientY;
-      
-      startLeft = parseInt(croppedImage.style.left) || 0;
-      startTop = parseInt(croppedImage.style.top) || 0;
-      
-      croppedImage.style.cursor = 'grabbing';
-    }
-    
-    function startCroppedDraggingTouch(e) {
-      if (e.touches.length !== 1) return;
-      e.preventDefault();
-      isDragging = true;
-      
-      const touch = e.touches[0];
-      startX = touch.clientX;
-      startY = touch.clientY;
-      
-      startLeft = parseInt(croppedImage.style.left) || 0;
-      startTop = parseInt(croppedImage.style.top) || 0;
-    }
-    
-    function dragCropped(e) {
-      if (!isDragging) return;
-      
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      
-      const containerWidth = croppedContainer.clientWidth;
-      const containerHeight = croppedContainer.clientHeight;
-      
-      const scaledWidth = croppedImageWidth * croppedCurrentScale;
-      const scaledHeight = croppedImageHeight * croppedCurrentScale;
-      
-      let newLeft = startLeft + dx;
-      let newTop = startTop + dy;
-      
-      // Constrain movement to ensure image stays within view
-      newLeft = Math.min(0, Math.max(newLeft, containerWidth - scaledWidth));
-      newTop = Math.min(0, Math.max(newTop, containerHeight - scaledHeight));
-      
-      croppedImage.style.left = `${newLeft}px`;
-      croppedImage.style.top = `${newTop}px`;
-    }
-    
-    function dragCroppedTouch(e) {
-      if (!isDragging || e.touches.length !== 1) return;
-      
-      const touch = e.touches[0];
-      const dx = touch.clientX - startX;
-      const dy = touch.clientY - startY;
-      
-      const containerWidth = croppedContainer.clientWidth;
-      const containerHeight = croppedContainer.clientHeight;
-      
-      const scaledWidth = croppedImageWidth * croppedCurrentScale;
-      const scaledHeight = croppedImageHeight * croppedCurrentScale;
-      
-      let newLeft = startLeft + dx;
-      let newTop = startTop + dy;
-      
-      // Constrain movement to ensure image stays within view
-      newLeft = Math.min(0, Math.max(newLeft, containerWidth - scaledWidth));
-      newTop = Math.min(0, Math.max(newTop, containerHeight - scaledHeight));
-      
-      croppedImage.style.left = `${newLeft}px`;
-      croppedImage.style.top = `${newTop}px`;
-    }
-    
-    function stopCroppedDragging() {
-      isDragging = false;
-      croppedImage.style.cursor = 'move';
-    }
-    
-    // Magnification Control
-    intensitySlider.addEventListener('input', updateMagnification);
-    grayscaleCheckbox.addEventListener('change', applyGrayscale);
-    selectionModeCheckbox.addEventListener('change', toggleSelectionMode);
-    
-    function updateMagnification() {
-      currentScale = parseFloat(intensitySlider.value);
-      intensityValue.textContent = currentScale.toFixed(1);
-      zoomInfo.textContent = `Current zoom: ${currentScale.toFixed(1)}x`;
-      
-      // Apply transform
-      magnifiedImage.style.transform = `scale(${currentScale})`;
-      
-      // Center the image when zooming
-      centerImage();
-      
-      // Reset selection when zooming
-      if (selectionActive) {
-        selectionBox.style.display = 'none';
-        selectionActive = false;
-      }
-    }
-    
-    function centerImage() {
-      const containerWidth = magnifiedContainer.clientWidth;
-      const containerHeight = magnifiedContainer.clientHeight;
-      
-      // Calculate scaled image dimensions
-      const scaledWidth = originalImageWidth * currentScale;
-      const scaledHeight = originalImageHeight * currentScale;
-      
-      // Center the image
-      let leftPos = (containerWidth - scaledWidth) / 2;
-      let topPos = (containerHeight - scaledHeight) / 2;
-      
-      // Ensure the image doesn't get positioned outside the
